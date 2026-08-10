@@ -1,0 +1,163 @@
+<!-- @dsCard group="Voice Logging" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Logging — Settings</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-400:#34d399;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { padding: 22px 20px 28px; display: flex; flex-direction: column; gap: 22px; min-height: 844px; }
+  .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--text-tertiary); text-decoration: none; width: fit-content; }
+  .back-link svg { width: 14px; height: 14px; }
+  h1 { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); margin: 6px 0 0; }
+  .subtitle { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); margin: 4px 0 0; }
+
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); margin: 4px 0 -8px; }
+
+  .row-card {
+    border: 1px solid var(--border); border-radius: 18px; background: var(--bg-card); padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+  .toggle-row .copy p.title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .toggle-row .copy p.desc { margin: 5px 0 0; font-size: 12px; line-height: 1.55; color: var(--text-secondary); }
+
+  .switch {
+    flex-shrink: 0; position: relative; width: 44px; height: 26px; border-radius: 999px;
+    background: var(--sky-600); border: none; cursor: pointer; margin-top: 2px;
+  }
+  .switch .knob { position: absolute; top: 3px; left: 21px; width: 20px; height: 20px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  .safety-note { display: flex; gap: 8px; align-items: flex-start; padding-top: 10px; border-top: 1px solid var(--border); }
+  .safety-note svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; color: var(--text-tertiary); }
+  .safety-note p { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--text-tertiary); }
+
+  .capability-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .capability-row .label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .capability-row .label svg { width: 15px; height: 15px; color: var(--text-tertiary); }
+  .capability-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--emerald-400); }
+  .capability-status svg { width: 13px; height: 13px; }
+  .capability-sub { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-tertiary); }
+
+  .manual-card { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .manual-card p.title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .manual-card p.desc { margin: 0; font-size: 12px; line-height: 1.55; color: var(--text-secondary); }
+  .btn-manual {
+    width: 100%; min-height: 48px; border-radius: 13px; border: none;
+    background: var(--sky-500); color: #051019; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .always-note { margin: 0; font-size: 11px; color: var(--text-tertiary); }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <a class="back-link" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Settings
+      </a>
+      <div>
+        <h1>Post-dive logging</h1>
+        <p class="subtitle">Controls for the conditions prompt and voice-logged dive entries.</p>
+      </div>
+
+      <p class="section-label">Automatic prompt</p>
+      <div class="row-card">
+        <div class="toggle-row">
+          <div class="copy">
+            <p class="title">Auto-prompt for dive conditions</p>
+            <p class="desc">When on, Shore Dive may show a quick conditions prompt (with the option to log a full voice entry) after a Safe-Return check-in or a completed dive plan.</p>
+          </div>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Auto-prompt for dive conditions">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div class="safety-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p>Turning this off only disables the automatic prompt &mdash; you can still log a dive manually anytime below. It also never appears while a Safe-Return alarm may be sounding.</p>
+        </div>
+      </div>
+
+      <p class="section-label">Voice logging</p>
+      <div class="row-card">
+        <div class="capability-row">
+          <span class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            Speech-to-text
+          </span>
+          <span class="capability-status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Available on this device
+          </span>
+        </div>
+        <p class="capability-sub">Runs entirely in your browser &mdash; nothing is uploaded. Unsupported on some browsers (notably iPhone Safari); when it's not available, "Record voice log" is replaced with manual entry automatically.</p>
+      </div>
+
+      <p class="section-label">Manual entry</p>
+      <div class="row-card manual-card">
+        <p class="title">Log a dive now</p>
+        <p class="desc">Open the same structured logbook entry &mdash; depth, runtime, marine life, conditions &mdash; without waiting for a prompt.</p>
+        <button class="btn-manual" type="button">Log a dive now</button>
+        <p class="always-note">Always available, even with auto-prompt off.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

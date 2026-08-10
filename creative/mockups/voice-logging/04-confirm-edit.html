@@ -1,0 +1,289 @@
+<!-- @dsCard group="Voice Logging" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Logging — Confirm / edit draft</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { display: flex; flex-direction: column; max-height: 844px; }
+
+  .topbar { padding: 18px 20px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--text-tertiary); text-decoration: none; width: fit-content; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
+  .back-link svg { width: 14px; height: 14px; }
+  .title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+  h1 { font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); margin: 0; }
+  .draft-badge {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+    border: 1px dashed var(--zinc-500); border-radius: 999px; padding: 4px 10px;
+    font-size: 10.5px; font-weight: 600; color: var(--text-secondary); background: rgba(161,161,170,0.08);
+  }
+  .draft-badge svg { width: 11px; height: 11px; }
+  .subtitle { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); margin: 6px 0 0; }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 18px 20px 4px; display: flex; flex-direction: column; gap: 16px; }
+
+  .transcript-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border: 1px solid var(--border); border-radius: 14px; padding: 11px 14px;
+    background: var(--bg-card); cursor: pointer;
+  }
+  .transcript-toggle .label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+  .transcript-toggle svg.icon { width: 15px; height: 15px; color: var(--text-tertiary); }
+  .transcript-toggle svg.chev { width: 14px; height: 14px; color: var(--text-tertiary); transform: rotate(90deg); }
+  .transcript-body {
+    margin-top: -6px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 14px 14px;
+    padding: 12px 14px 14px; background: var(--bg-raised);
+  }
+  .transcript-body p {
+    margin: 0; font-size: 12px; line-height: 1.6; color: var(--text-secondary); font-style: italic;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .field-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px; letter-spacing: 0.02em;
+  }
+  .tag.transcribed { border: 1px dashed var(--zinc-500); color: var(--text-tertiary); background: rgba(161,161,170,0.08); }
+  .tag.edited { background: var(--sky-500); color: #051019; border: 1px solid var(--sky-500); }
+
+  input[type="text"], input[type="number"], textarea {
+    width: 100%; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-primary); font-family: inherit; font-size: 14px; padding: 10px 12px;
+  }
+  input[type="number"] { font-variant-numeric: tabular-nums; }
+  .unit-input { display: flex; align-items: center; gap: 8px; }
+  .unit-input input { flex: 1; }
+  .unit-suffix { font-size: 12.5px; color: var(--text-tertiary); min-width: 28px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border-radius: 999px; border: 1px solid var(--border); padding: 6px 12px; font-size: 12.5px; font-weight: 500;
+    color: var(--text-secondary); background: transparent; font-family: inherit; cursor: pointer;
+  }
+  .chip.selected { border-color: var(--sky-400); background: rgba(56,189,248,0.14); color: var(--sky-300); }
+  :root[data-theme="light"] .chip.selected { color: #0369a1; }
+
+  .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .life-chip {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-card); padding: 5px 6px 5px 12px;
+    font-size: 12.5px; color: var(--text-primary);
+  }
+  .life-chip button { width: 18px; height: 18px; border-radius: 999px; border: none; background: var(--bg-raised); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .life-chip button svg { width: 10px; height: 10px; }
+  .add-chip {
+    display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: 1px dashed var(--border);
+    background: transparent; padding: 5px 12px; font-size: 12.5px; color: var(--text-tertiary); cursor: pointer;
+  }
+  .add-chip svg { width: 12px; height: 12px; }
+
+  textarea { min-height: 64px; resize: vertical; line-height: 1.5; }
+
+  .draft-notice {
+    display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px; background: var(--bg-card);
+  }
+  .draft-notice svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--sky-400); }
+  .draft-notice p { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--text-secondary); }
+
+  .footer-note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-tertiary); padding-bottom: 4px; }
+
+  .action-bar {
+    flex-shrink: 0; padding: 14px 20px calc(18px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border); background: var(--bg-app);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .review-line { margin: 0 0 2px; font-size: 11.5px; color: var(--text-tertiary); text-align: center; }
+  .btns { display: flex; gap: 8px; }
+  .btn-discard {
+    flex: 1; min-height: 48px; border-radius: 13px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .btn-save {
+    flex: 1.4; min-height: 48px; border-radius: 13px; border: none;
+    background: var(--sky-500); color: #051019; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <div class="topbar">
+        <button class="back-link" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Back to recording
+        </button>
+        <div class="title-row">
+          <h1>Review your dive log</h1>
+          <span class="draft-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg>
+            Draft
+          </span>
+        </div>
+        <p class="subtitle">We turned your recording into the draft below. Check each field &mdash; nothing saves until you confirm.</p>
+      </div>
+
+      <div class="scroll">
+        <div>
+          <div class="transcript-toggle" role="button" tabindex="0" aria-expanded="true">
+            <span class="label">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Raw transcript
+            </span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+          <div class="transcript-body">
+            <p>"That was La Jolla Cove, went down to about fifty five feet, stayed under for maybe forty minutes. Saw a garibaldi and what I think was a leopard shark near the kelp. Visibility was decent, current was pretty calm."</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Max depth</span>
+            <span class="tag edited">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:9px;height:9px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              Edited
+            </span>
+          </div>
+          <div class="unit-input">
+            <input type="number" value="58" aria-label="Max depth in feet" />
+            <span class="unit-suffix">ft</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Runtime</span>
+            <span class="tag transcribed">Transcribed</span>
+          </div>
+          <div class="unit-input">
+            <input type="number" value="40" aria-label="Runtime in minutes" style="font-variant-numeric: tabular-nums;" />
+            <span class="unit-suffix">min</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Marine life</span>
+            <span class="tag transcribed">Transcribed</span>
+          </div>
+          <div class="tag-chips">
+            <span class="life-chip">Garibaldi <button type="button" aria-label="Remove Garibaldi"><svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button></span>
+            <span class="life-chip">Leopard shark (maybe) <button type="button" aria-label="Remove Leopard shark"><svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button></span>
+            <button class="add-chip" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Visibility</span>
+            <span class="tag transcribed">Transcribed</span>
+          </div>
+          <div class="chip-row" role="radiogroup" aria-label="Visibility">
+            <button class="chip" type="button">Poor</button>
+            <button class="chip selected" type="button">Good</button>
+            <button class="chip" type="button">Excellent</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Current</span>
+            <span class="tag transcribed">Transcribed</span>
+          </div>
+          <div class="chip-row" role="radiogroup" aria-label="Current">
+            <button class="chip selected" type="button">None / calm</button>
+            <button class="chip" type="button">Mild</button>
+            <button class="chip" type="button">Strong</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label">Notes (optional)</span>
+            <span class="tag transcribed">Transcribed</span>
+          </div>
+          <textarea aria-label="Notes">Near the kelp bed, north side of the cove.</textarea>
+        </div>
+
+        <div class="draft-notice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+          <p>Fields are extracted from your recording and may be wrong &mdash; check numbers and names before saving.</p>
+        </div>
+
+        <p class="footer-note">Saved on this device only for now &mdash; not yet synced to an account.</p>
+      </div>
+
+      <div class="action-bar">
+        <p class="review-line">This is a draft &mdash; review before saving.</p>
+        <div class="btns">
+          <button class="btn-discard" type="button">Discard draft</button>
+          <button class="btn-save" type="button">Save log</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

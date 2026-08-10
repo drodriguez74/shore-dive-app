@@ -1,0 +1,175 @@
+<!-- @dsCard group="Map Exploration" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Site detail — Community, not yet assessed</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+    --dive-blue:#3b73f2; --dive-violet:#8365be; --dive-pink:#dc577f;
+    --gradient-dive:linear-gradient(135deg,var(--dive-blue) 0%,var(--dive-violet) 50%,var(--dive-pink) 100%);
+    --sky-400:#38bdf8; --sky-600:#0284c7;
+    --emerald-400:#34d399;
+    --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --rose-400:#fb7185;
+    --violet-400:#a78bfa;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--zinc-300); display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+  .phone{
+    width:390px; max-width:100%; min-height:844px; background:var(--depth-0);
+    border-radius:32px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7); overflow:hidden; display:flex; flex-direction:column;
+  }
+  .topbar{display:flex; align-items:center; gap:10px; padding:16px 16px 12px;}
+  .back-btn{
+    width:36px; height:36px; border-radius:10px; background:var(--depth-2); border:1px solid var(--depth-border);
+    display:flex; align-items:center; justify-content:center; color:var(--zinc-300); flex-shrink:0;
+  }
+  .topbar-title{font-size:14px; font-weight:600; color:#f4f4f5;}
+  .scroll{flex:1; overflow-y:auto;}
+  .hero{
+    margin:0 16px; height:130px; border-radius:16px; background:var(--depth-1);
+    border:1px solid var(--depth-border); display:flex; align-items:center; justify-content:center;
+  }
+  .hero svg{opacity:.35; color:var(--violet-400);}
+  .content{padding:16px;}
+  .site-name{font-size:22px; font-weight:700; color:#f8fafc; letter-spacing:-.01em;}
+  .site-sub{font-size:12.5px; color:var(--zinc-500); margin-top:3px;}
+  .badge-row{display:flex; flex-wrap:wrap; gap:7px; margin-top:12px;}
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px 5px 9px;
+    font-size:12px; font-weight:500; border:1px solid;
+  }
+  .badge-community{border-color:rgba(167,139,250,.3); background:rgba(167,139,250,.1); color:#c4b5fd;}
+  .badge-unassessed{border-color:rgba(161,161,170,.4); background:rgba(161,161,170,.08); color:#d4d4d8; border-style:dashed;}
+  .badge-not-cached{border-color:rgba(161,161,170,.35); background:rgba(161,161,170,.06); color:var(--zinc-400);}
+
+  .prefetch-row{
+    display:flex; align-items:center; gap:12px; margin-top:16px; padding:12px 14px;
+    background:var(--depth-1); border:1px solid var(--depth-border); border-radius:12px; flex-wrap:wrap;
+  }
+  .btn-prefetch{border-radius:8px; background:var(--sky-600); padding:9px 14px; font-size:13px; font-weight:500; color:white; border:none;}
+
+  .desc{font-size:13.5px; line-height:1.6; color:var(--zinc-300); margin-top:18px;}
+  .section{margin-top:22px;}
+  .section-title{font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--zinc-500); margin-bottom:9px;}
+
+  .legal-block{
+    display:flex; gap:10px; padding:12px 13px; background:rgba(161,161,170,.05);
+    border:1px dashed rgba(161,161,170,.35); border-radius:12px;
+  }
+  .legal-icon{color:var(--zinc-400); flex-shrink:0; margin-top:1px;}
+  .legal-text{font-size:12.5px; line-height:1.55; color:var(--zinc-300);}
+  .legal-text b{color:#f4f4f5;}
+
+  .coord-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;
+    padding:11px 13px; background:var(--depth-1); border:1px solid var(--depth-border); border-radius:12px;
+  }
+  .coord-text{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--zinc-300); font-variant-numeric:tabular-nums;}
+  .coord-copy{color:var(--zinc-500); display:flex; align-items:center;}
+
+  .hazard-card{
+    padding:12px 13px; background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.25);
+    border-radius:12px; display:flex; flex-direction:column; gap:7px;
+  }
+  .hazard-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .hazard-time{font-size:11px; color:var(--zinc-500);}
+  .hazard-text{font-size:12.5px; line-height:1.55; color:var(--zinc-300);}
+
+  .cta-row{display:flex; gap:10px; margin-top:24px; padding-bottom:24px;}
+  .btn-secondary{
+    flex:1; height:48px; border-radius:12px; background:var(--depth-1); border:1px solid var(--depth-border);
+    color:var(--zinc-200); font-size:13.5px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+</style>
+</head>
+<body>
+<div class="device-note">Site detail — COMMUNITY + legal_access_status: null (not yet assessed)</div>
+<div class="phone">
+  <div class="topbar">
+    <div class="back-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
+    </div>
+    <div class="topbar-title">Site detail</div>
+  </div>
+
+  <div class="scroll">
+    <div class="hero">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/><path d="M2 17c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/><path d="M2 7c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/></svg>
+    </div>
+
+    <div class="content">
+      <div class="site-name">North Point</div>
+      <div class="site-sub">32.8551, &minus;117.2691 &middot; Shore entry</div>
+
+      <div class="badge-row">
+        <span class="badge badge-community">◐ Community</span>
+        <span class="badge badge-unassessed">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1.9-1.1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+          Not yet assessed
+        </span>
+      </div>
+
+      <div class="prefetch-row">
+        <span class="badge badge-not-cached" style="margin:0;">Not cached yet</span>
+        <button class="btn-prefetch" type="button">Prefetch Now</button>
+      </div>
+
+      <p class="desc">Submitted by a community member &mdash; rocky point entry north of the main beach. Less crowded than the cove but exposed to swell; check conditions before committing.</p>
+
+      <div class="section">
+        <div class="section-title">Legal &amp; access status</div>
+        <div class="legal-block">
+          <div class="legal-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1.9-1.1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+          </div>
+          <div class="legal-text"><b>Not yet assessed.</b> Nobody has confirmed whether this site has access restrictions &mdash; this is different from &ldquo;open,&rdquo; which means a check was done and nothing was found. Treat as unknown; look for posted signage on arrival.</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Coordinates</div>
+        <div class="coord-row">
+          <span class="coord-text">32.855100, &minus;117.269100</span>
+          <span class="coord-copy" title="Copy coordinates">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Hazard reports &middot; 1 open</div>
+        <div class="hazard-card">
+          <div class="hazard-top">
+            <span class="badge badge-community" style="margin:0;">◐ Community</span>
+            <span class="hazard-time">Reported 6 hours ago</span>
+          </div>
+          <div class="hazard-text">Strong longshore current past the point at low tide &mdash; two divers had to swim wide to get back to the entry.</div>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <button class="btn-secondary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+          Add to dive plan
+        </button>
+        <button class="btn-secondary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,11 22,2 13,21 11,13 3,11"/></svg>
+          Directions
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

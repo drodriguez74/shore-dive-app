@@ -1,0 +1,163 @@
+<!-- @dsCard group="Offline Prefetch" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline Prefetch — Freshness states comparison</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-600:#0284c7;
+    --emerald-300:#6ee7b7;
+    --amber-300:#fcd34d;
+    --violet-400:#a78bfa;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-900:#18181b;
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --bg-canvas: #05070d; --bg-app: var(--depth-0); --bg-card: var(--depth-1); --border: var(--depth-border);
+    --text-primary: var(--zinc-50); --text-secondary: var(--zinc-400); --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200); --bg-app: var(--zinc-50); --bg-card: #ffffff; --border: var(--zinc-200);
+    --text-primary: var(--zinc-900); --text-secondary: var(--zinc-600); --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background: var(--bg-canvas); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; font-family: var(--font-body); }
+  .theme-toggle { position:fixed; top:16px; right:16px; z-index:10; display:flex; align-items:center; gap:6px; background:var(--bg-card); border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:12px; color:var(--text-secondary); cursor:pointer; }
+  .theme-toggle svg { width:14px; height:14px; }
+  .device { width:390px; max-width:100%; background: var(--bg-app); border-radius:32px; border:1px solid var(--border); box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55); overflow:hidden; }
+  .screen { padding: 22px 20px 30px; display:flex; flex-direction:column; gap:22px; }
+  h1 { font-family: var(--font-display); font-size:20px; font-weight:600; letter-spacing:-.01em; color: var(--text-primary); margin:0; }
+  .subtitle { font-size:12.5px; line-height:1.6; color: var(--text-secondary); margin:6px 0 0; }
+
+  .section-title { font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color: var(--text-tertiary); margin:0 0 10px; }
+
+  .badge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px; font-size:11.5px; font-weight:500; border:1px solid; white-space:nowrap; }
+  .badge-verified { border-color: rgba(56,189,248,.4); background: rgba(56,189,248,.1); color: var(--sky-300); }
+  .badge-community { border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.1); color: var(--violet-400); }
+  .badge-fresh { border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.1); color: var(--emerald-300); }
+  .badge-stale { border-color: rgba(217,119,6,.45); background: rgba(245,158,11,.14); color: var(--amber-300); }
+  :root[data-theme="light"] .badge-stale { color: #92400e; }
+
+  /* --- Site card / list context --- */
+  .card-list { display:flex; flex-direction:column; gap:10px; }
+  .site-card {
+    border: 1px solid var(--border); background: var(--bg-card); border-radius: 14px; padding: 13px 14px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .site-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .site-card-name { font-size:14px; font-weight:600; color: var(--text-primary); }
+  .site-card-sub { font-size:11px; color: var(--text-tertiary); margin-top:1px; }
+  .site-card-note { font-size:11px; color: var(--text-tertiary); font-style:italic; }
+
+  /* --- Inline site-detail context --- */
+  .detail-row {
+    border: 1px solid var(--border); background: var(--bg-card); border-radius: 14px; padding: 13px 14px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .detail-name { font-size:14.5px; font-weight:700; color: var(--text-primary); }
+  .detail-freshness-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .detail-note { font-size:11px; color: var(--text-tertiary); }
+
+  .explainer {
+    border: 1px dashed var(--border); border-radius: 12px; padding: 12px 14px;
+    font-size:11.5px; line-height:1.6; color: var(--text-tertiary);
+  }
+  .explainer b { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <div>
+        <h1>Freshness states</h1>
+        <p class="subtitle">Comparison sheet &mdash; <code>FreshnessBadge</code>'s real threshold logic (12h default). The badge is intentionally two-color (emerald/amber); the relative-time text carries the rest of the honesty.</p>
+      </div>
+
+      <div>
+        <p class="section-title">On a site card (map / list)</p>
+        <div class="card-list">
+          <div class="site-card">
+            <div class="site-card-top">
+              <div>
+                <div class="site-card-name">La Jolla Cove</div>
+                <div class="site-card-sub">Shore entry &middot; 1.1 mi away</div>
+              </div>
+              <span class="badge badge-verified">✓ Verified</span>
+            </div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-fresh">✓ Cached 2 minutes ago</span>
+            </div>
+            <span class="site-card-note">Freshly prefetched &mdash; well inside the window.</span>
+          </div>
+
+          <div class="site-card">
+            <div class="site-card-top">
+              <div>
+                <div class="site-card-name">Shaw&rsquo;s Cove</div>
+                <div class="site-card-sub">Shore entry &middot; 4.6 mi away</div>
+              </div>
+              <span class="badge badge-verified">✓ Verified</span>
+            </div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-fresh">✓ Cached 8 hours ago</span>
+            </div>
+            <span class="site-card-note">Aging, but still fresh &mdash; under the 12h threshold, same emerald treatment.</span>
+          </div>
+
+          <div class="site-card">
+            <div class="site-card-top">
+              <div>
+                <div class="site-card-name">Windansea Beach</div>
+                <div class="site-card-sub">Shore entry &middot; 6.2 mi away</div>
+              </div>
+              <span class="badge badge-community">◐ Community</span>
+            </div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-stale">⚠ Stale &mdash; cached 14 hours ago</span>
+            </div>
+            <span class="site-card-note">Past the 12h threshold &mdash; flips to amber, wording changes to &ldquo;Stale.&rdquo;</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="section-title">Inline on site detail</p>
+        <div class="card-list">
+          <div class="detail-row">
+            <div class="detail-name">La Jolla Cove</div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-fresh">✓ Cached 2 minutes ago</span>
+            </div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-name">Shaw&rsquo;s Cove</div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-fresh">✓ Cached 8 hours ago</span>
+            </div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-name">Windansea Beach</div>
+            <div class="detail-freshness-line">
+              <span class="badge badge-stale">⚠ Stale &mdash; cached 14 hours ago</span>
+            </div>
+            <span class="detail-note">Refresh recommended before you lose signal.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="explainer">
+        <b>Never a bare cached/not-cached binary.</b> A missing or invalid <code>cachedAt</code> fails toward this same amber &ldquo;stale&rdquo; treatment (never toward a false-fresh green) &mdash; see <code>freshness-badge.tsx</code>. There is deliberately no third badge color: age is communicated by the relative-time text within each color bucket, not by inventing a new visual state.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!-- @dsCard group="Onboarding" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Onboarding — Welcome</title>
+<style>
+  :root {
+    --depth-0: #0b1220;
+    --depth-1: #111a2e;
+    --depth-2: #182444;
+    --depth-3: #1f2e54;
+    --depth-border: #2a3a63;
+    --dive-blue: #3b73f2;
+    --dive-violet: #8365be;
+    --dive-pink: #dc577f;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --font-body: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #05070d;
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: center;
+    padding: 32px 12px;
+    min-height: 100vh;
+  }
+  .device {
+    width: 390px;
+    max-width: 100%;
+    min-height: 844px;
+    background: var(--depth-0);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px var(--depth-border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    color: #e6ebf7;
+  }
+
+  /* --- Hero (the one deliberately decorative gradient moment, per
+     DESIGN_SYSTEM.md §2.3) --- */
+  .hero {
+    position: relative;
+    padding: 64px 28px 40px;
+    background: var(--gradient-dive);
+    overflow: hidden;
+  }
+  .hero::before {
+    /* Soften the gradient toward the depth-0 base so it reads as "glow
+       rising from the dark" rather than a flat color block. */
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 50% 0%, transparent 0%, transparent 45%, var(--depth-0) 100%);
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .mark {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: rgba(11,18,32,0.35);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+  }
+  .mark svg { width: 30px; height: 30px; stroke: #fff; }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: 30px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    color: #fff;
+    font-weight: 600;
+  }
+  .hero p.tag {
+    margin: 0;
+    color: rgba(255,255,255,0.92);
+    font-size: 15px;
+    line-height: 1.5;
+    max-width: 30ch;
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 24px 28px;
+    gap: 22px;
+  }
+
+  .lede {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #cdd6ea;
+    margin: 0;
+  }
+
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .fact {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    background: var(--depth-1);
+    border: 1px solid var(--depth-border);
+    border-radius: 14px;
+  }
+  .fact svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    stroke: var(--sky-400);
+    margin-top: 1px;
+  }
+  .fact.honest svg { stroke: #fbbf24; }
+  .fact h2 {
+    font-size: 13.5px;
+    font-weight: 600;
+    margin: 0 0 3px;
+    color: #f2f5fb;
+  }
+  .fact p {
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+    color: #a7b2c9;
+  }
+
+  .spacer { flex: 1; min-height: 8px; }
+
+  .cta {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 14px;
+    border: none;
+    background: var(--sky-500);
+    color: #051019;
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .cta svg { width: 18px; height: 18px; stroke: #051019; }
+  .cta:hover { background: #29b6ff; }
+
+  .fine {
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--zinc-500);
+    margin: 12px 0 0;
+    line-height: 1.5;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-content { animation: rise 500ms ease-out; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  }
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="hero">
+    <div class="hero-content">
+      <div class="mark" aria-hidden="true">
+        <!-- diving-mask mark, outline style -->
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9c0-2.8 2.6-5 6-5h6c3.4 0 6 2.2 6 5v2c0 4-3 8-9 8s-9-4-9-8V9Z"/>
+          <circle cx="9" cy="10.5" r="2.1"/>
+          <circle cx="15" cy="10.5" r="2.1"/>
+          <path d="M11 10.5h2"/>
+        </svg>
+      </div>
+      <h1>Shore Dive</h1>
+      <p class="tag">Find hyper-local shore-dive sites, and get back safe.</p>
+    </div>
+  </div>
+
+  <main>
+    <p class="lede">
+      A map of real shore-entry dive sites — condition data, access notes,
+      and an offline cache so you're not stuck without a signal at the
+      water's edge. Built and run by one person, for the dive community.
+    </p>
+
+    <div class="facts">
+      <div class="fact">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.686-7-11a7 7 0 1 1 14 0c0 5.314-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <div>
+          <h2>Free, no ads, no subscription</h2>
+          <p>Nothing here is monetized. No account tier, no upsell — this stays that way.</p>
+        </div>
+      </div>
+      <div class="fact honest">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <div>
+          <h2>Two honest limits, up front</h2>
+          <p>The Safe-Return timer only alerts this device — no one else is notified. Offline caching is best-effort, not guaranteed. More on both later.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <button class="cta" type="button">
+      Get started
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+    </button>
+    <p class="fine">Next: sign in with Google. That's the only account step.</p>
+  </main>
+</div>
+</body>
+</html>

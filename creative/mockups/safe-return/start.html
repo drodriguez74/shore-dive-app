@@ -1,0 +1,232 @@
+<!-- @dsCard group="Safe-Return Timer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Safe-Return Timer — Start</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --dive-blue:#3B73F2; --dive-violet:#8365BE; --dive-pink:#DC577F;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b; --amber-900:#78350f;
+    --rose-400:#fb7185; --rose-500:#f43f5e;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { padding: 22px 20px 28px; display: flex; flex-direction: column; gap: 22px; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500; color: var(--text-tertiary);
+    text-decoration: none; width: fit-content;
+  }
+  .back-link svg { width: 14px; height: 14px; }
+  h1 {
+    font-family: var(--font-display); font-size: 24px; font-weight: 600;
+    letter-spacing: -0.01em; color: var(--text-primary); margin: 6px 0 0;
+  }
+  .subtitle { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 4px 0 0; }
+
+  .icon-row { display: flex; align-items: flex-start; gap: 10px; }
+  .icon-badge {
+    flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  }
+  .icon-badge svg { width: 18px; height: 18px; }
+
+  /* Disclaimer — must stay unmissable */
+  .disclaimer {
+    border: 1px solid rgba(245,158,11,0.4);
+    background: rgba(245,158,11,0.09);
+    border-left: 3px solid var(--amber-500);
+    border-radius: 14px;
+    padding: 16px;
+    color: var(--text-primary);
+  }
+  :root[data-theme="light"] .disclaimer { color: var(--amber-900); }
+  .disclaimer-title { font-size: 14px; font-weight: 600; color: var(--amber-300); margin: 0 0 6px; }
+  :root[data-theme="light"] .disclaimer-title { color: #92400e; }
+  .disclaimer p { font-size: 13px; line-height: 1.6; margin: 0; color: var(--text-primary); }
+  .disclaimer ul { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .disclaimer li { font-size: 12px; line-height: 1.55; color: var(--text-secondary); }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+
+  .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .preset-btn {
+    border-radius: 12px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-secondary); font-size: 14px; font-weight: 500; font-family: inherit;
+    padding: 13px 8px; text-align: center; cursor: pointer;
+  }
+  .preset-btn.selected {
+    border-color: var(--sky-500); background: rgba(14,165,233,0.14); color: var(--sky-300);
+  }
+  :root[data-theme="light"] .preset-btn.selected { color: #0369a1; }
+
+  .field-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .checkbox {
+    width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--zinc-500);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent;
+  }
+
+  .text-input {
+    width: 100%; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-primary); font-size: 13px; font-family: inherit; padding: 10px 12px;
+  }
+  .text-input::placeholder { color: var(--text-tertiary); }
+
+  /* Acknowledgment gate — same visual family as the disclaimer, deliberately */
+  .ack {
+    display: flex; align-items: flex-start; gap: 10px;
+    border: 1px solid rgba(245,158,11,0.35); border-radius: 14px; padding: 14px 16px;
+    background: rgba(245,158,11,0.05);
+  }
+  .ack .checkbox { margin-top: 1px; border-color: var(--amber-400); background: var(--amber-500); }
+  .ack .checkbox svg { width: 11px; height: 11px; stroke: #1a1300; }
+  .ack p { font-size: 13px; line-height: 1.55; color: var(--text-primary); margin: 0; }
+
+  .btn-primary {
+    width: 100%; min-height: 58px; border-radius: 16px; border: none;
+    background: var(--gradient-dive); color: white; font-family: inherit;
+    font-size: 16px; font-weight: 600; letter-spacing: -0.005em; cursor: pointer;
+    box-shadow: 0 10px 30px -12px rgba(131,101,190,0.55);
+  }
+
+  .status-block { display: flex; flex-direction: column; gap: 8px; }
+  .status-heading { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-tertiary); }
+  .status-list { display: flex; flex-direction: column; gap: 7px; }
+  .status-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+  .status-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .status-item.neutral svg { color: var(--zinc-500); }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <a class="back-link" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Shore Dive
+      </a>
+      <div>
+        <h1>Safe-Return Timer</h1>
+        <p class="subtitle">An on-device countdown with a local alarm on expiry. v1 is intentionally local-only — read the disclaimer below before you start.</p>
+      </div>
+
+      <div class="disclaimer" role="note" aria-label="Safe-Return timer disclaimer">
+        <div class="icon-row">
+          <span class="icon-badge" style="color: var(--amber-400)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          </span>
+          <div style="flex:1">
+            <p class="disclaimer-title">Before you start this timer</p>
+            <p>This timer alerts you, in this app, if you miss your check-in. It does not notify anyone else, and it&rsquo;s less reliable if you close the app or lock your phone — especially on iPhone. Tell a real person your dive plan before you go.</p>
+            <ul>
+              <li>No emergency contacts, push notifications, or SMS in this version — only a sound, a vibration, and a notification on this device.</li>
+              <li>On iPhone, the on-expiry notification only works if you&rsquo;ve added this app to your Home Screen and you&rsquo;re on iOS 16.4 or later.</li>
+              <li>Reliability is best while this app stays open and the screen is on.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <p class="label">Timer length</p>
+        <div class="preset-grid">
+          <button class="preset-btn" type="button">45m</button>
+          <button class="preset-btn selected" type="button">1h</button>
+          <button class="preset-btn" type="button">1h 30m</button>
+        </div>
+        <label class="field-row">
+          <span class="checkbox"></span>
+          Custom duration
+        </label>
+        <label style="display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-secondary); margin-top:4px;">
+          Dive plan label (optional)
+          <input class="text-input" type="text" placeholder="e.g. La Jolla Cove shore dive" value="La Jolla Cove shore dive" />
+        </label>
+      </div>
+
+      <label class="ack">
+        <span class="checkbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <p>I understand this only alerts me on this device, nobody else is notified, and it&rsquo;s less reliable in the background — I&rsquo;ve told a real person my dive plan.</p>
+      </label>
+
+      <button class="btn-primary" type="button">Start Timer</button>
+
+      <div class="status-block">
+        <p class="status-heading">What&rsquo;s actually available right now</p>
+        <div class="status-list">
+          <div class="status-item neutral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+            notifications: not yet permitted
+          </div>
+          <div class="status-item neutral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+            alarm sound: not yet unlocked — starting the timer will try again
+          </div>
+          <div class="status-item" style="color: var(--emerald-400)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+            vibration: available
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

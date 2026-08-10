@@ -1,0 +1,164 @@
+<!-- @dsCard group="LDS + Moderation" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Report a status update — LDS submission form</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399;
+    --amber-300:#fcd34d; --amber-400:#fbbf24;
+    --rose-300:#fda4af; --rose-400:#fb7185;
+    --violet-300:#c4b5fd; --violet-400:#a78bfa; --violet-500:#8b5cf6; --violet-600:#7c3aed;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a; --zinc-600:#52525b;
+
+    --font-body: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: 'Space Grotesk', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:var(--font-body); color:var(--zinc-300);
+    display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+
+  .phone{
+    width:390px; max-width:100%; min-height:780px; background:var(--depth-0);
+    border-radius:32px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7); overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+
+  .topbar{padding:18px 18px 4px;}
+  .back{font-size:12px; color:var(--zinc-500); text-decoration:none;}
+  h1{font-family:var(--font-display); font-size:18px; font-weight:700; color:#f8fafc; letter-spacing:-0.01em; margin:6px 0 2px;}
+  .subhead{font-size:12.5px; color:var(--zinc-500); margin:0;}
+
+  .target-card{
+    margin:16px 18px 0; display:flex; align-items:center; gap:10px;
+    background:var(--depth-1); border:1px solid var(--depth-border); border-radius:14px; padding:12px 14px;
+  }
+  .target-dot{width:11px; height:11px; border-radius:50%; background:#a1a1aa; border:2px solid #52525b; flex-shrink:0;}
+  .target-name{font-size:14px; font-weight:600; color:#f4f4f5;}
+  .target-current{font-size:11.5px; color:var(--zinc-500); margin-top:1px;}
+
+  form{margin:16px 18px 0; display:flex; flex-direction:column; gap:16px;}
+
+  .provenance-note{
+    display:flex; gap:8px; align-items:flex-start; padding:11px 12px; border-radius:12px;
+    border:1px solid rgba(167,139,250,.3); background:rgba(167,139,250,.08);
+  }
+  .provenance-note svg{flex-shrink:0; margin-top:1px; color:var(--violet-400);}
+  .provenance-note p{margin:0; font-size:12px; line-height:1.5; color:var(--zinc-300);}
+  .provenance-note strong{color:var(--violet-300); font-weight:600;}
+
+  .field label.field-label{
+    display:block; font-size:12px; font-weight:600; color:var(--zinc-300); margin-bottom:7px;
+  }
+  .field .hint{font-weight:400; color:var(--zinc-500);}
+
+  /* Status choice: real component is a <select> — rendered here as a
+     segmented option group for a faster on-site glance/tap, same four
+     values (open/closed/limited/unknown), same underlying semantics. */
+  .status-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .status-opt{
+    display:flex; align-items:center; gap:8px; padding:11px 12px; border-radius:12px;
+    border:1.5px solid var(--depth-border); background:var(--depth-1); min-height:44px;
+  }
+  .status-opt .dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .status-opt span.label{font-size:13px; font-weight:500; color:var(--zinc-300);}
+  .status-opt.selected{border-color:var(--violet-500); background:rgba(139,92,246,.12);}
+  .status-opt.selected span.label{color:#f4f4f5; font-weight:600;}
+  .dot.open{background:var(--emerald-400);}
+  .dot.closed{background:var(--rose-400);}
+  .dot.limited{background:var(--amber-400);}
+  .dot.unknown{background:var(--zinc-500);}
+
+  textarea{
+    width:100%; resize:none; border-radius:12px; border:1.5px solid var(--depth-border);
+    background:var(--depth-1); color:#f4f4f5; padding:11px 12px; font-size:13px; font-family:inherit;
+    line-height:1.5;
+  }
+  textarea::placeholder{color:var(--zinc-600);}
+  .char-count{font-size:10.5px; color:var(--zinc-600); text-align:right; margin-top:4px;}
+
+  .submit-btn{
+    min-height:48px; border-radius:12px; border:none; background:var(--violet-600);
+    color:white; font-size:14.5px; font-weight:600; cursor:pointer;
+  }
+  .submit-btn:hover{background:var(--violet-500);}
+
+  .success-note{
+    display:flex; gap:8px; align-items:flex-start; padding:11px 12px; border-radius:12px;
+    border:1px solid rgba(52,211,153,.3); background:rgba(52,211,153,.08); margin-top:2px;
+  }
+  .success-note svg{flex-shrink:0; margin-top:1px; color:var(--emerald-400);}
+  .success-note p{margin:0; font-size:12px; line-height:1.5; color:var(--zinc-300);}
+
+  .foot-note{
+    margin:22px 18px 20px; font-size:11px; line-height:1.5; color:var(--zinc-600);
+    border-top:1px solid var(--depth-border); padding-top:12px;
+  }
+</style>
+</head>
+<body>
+<div class="device-note">LDS submission form — mobile, 390px (consumer-facing)</div>
+<div class="phone">
+  <div class="topbar">
+    <a class="back" href="#">← Fill Stations &amp; Gear</a>
+    <h1>Report a status update</h1>
+    <p class="subhead">Help other divers know before they show up</p>
+  </div>
+
+  <div class="target-card">
+    <div class="target-dot"></div>
+    <div>
+      <div class="target-name">La Jolla Dive &amp; Kayak</div>
+      <div class="target-current">Currently shown: Open · verified 2 hr ago</div>
+    </div>
+  </div>
+
+  <form>
+    <div class="provenance-note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Your report is tagged <strong>Community</strong> — it can't mark a status as Verified. Verified only comes
+      from a confirmed authoritative source.</p>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Status</label>
+      <div class="status-grid">
+        <div class="status-opt"><span class="dot open"></span><span class="label">Open</span></div>
+        <div class="status-opt"><span class="dot closed"></span><span class="label">Closed</span></div>
+        <div class="status-opt"><span class="dot limited"></span><span class="label">Limited air</span></div>
+        <div class="status-opt selected"><span class="dot unknown"></span><span class="label">Status unknown</span></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Notes <span class="hint">(optional — air fill availability, hours)</span></label>
+      <textarea rows="3" placeholder="Nitrox available, cash only, closes early on Sundays…">Was closed when I passed by at 4pm, no sign explaining why.</textarea>
+      <div class="char-count">62 / 280</div>
+    </div>
+
+    <button type="button" class="submit-btn">Submit report</button>
+
+    <div class="success-note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      <p>Saved on this device. No live backend yet — this doesn't reach other users.</p>
+    </div>
+  </form>
+
+  <p class="foot-note">
+    Status choice rendered here as a tap grid instead of the real component's native &lt;select&gt; — same four
+    values, faster to read/tap one-handed at a shop counter. Violet is used as this screen's one accent
+    (submit button, provenance note) because it's the Community semantic itself, not a borrowed brand moment —
+    the Dive Gradient stays reserved for hero screens per DESIGN_SYSTEM.md §2.3.
+  </p>
+</div>
+</body>
+</html>

@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# serwist (generated service worker)
+/public/sw.js
+/public/sw.js.map
+
 # production
 /build
 
@@ -32,6 +36,20 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env*.example
+
+# Google OAuth client secret JSON (downloaded from Google Cloud Console for
+# P0-A.2's OAuth client setup) — a real credential, same sensitivity class
+# as the Supabase service-role key. Was sitting untracked but NOT gitignored
+# for this entire session (confirmed via `git check-ignore`, exit 1) — one
+# `git add -A` away from being committed and, if ever pushed, exposed. Found
+# during the 2026-08-08 adversarial business review of plan.md.
+client_secret_*.json
+
+# Account recovery / 2FA backup codes (found untracked at repo root while
+# setting up the remote, 2026-08-10) — same class of secret as the OAuth
+# client file above, must never enter history.
+recovery-codes.txt
 
 # vercel
 .vercel

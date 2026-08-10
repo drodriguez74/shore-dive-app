@@ -1,0 +1,129 @@
+<!-- @dsCard group="Safe-Return Timer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Safe-Return Timer — Checked in</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-200:#a7f3d0; --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { padding: 22px 20px 28px; display: flex; flex-direction: column; gap: 22px; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500; color: var(--text-tertiary);
+    text-decoration: none; width: fit-content;
+  }
+  .back-link svg { width: 14px; height: 14px; }
+  h1 {
+    font-family: var(--font-display); font-size: 24px; font-weight: 600;
+    letter-spacing: -0.01em; color: var(--text-primary); margin: 6px 0 0;
+  }
+  .subtitle { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 4px 0 0; }
+
+  .resolve-wrap { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 46px 12px 30px; text-align: center; }
+
+  /* Quiet settle-in, not a burst: a short fade+rise, well under 200ms won't
+     even be perceived as "animated" — intentionally restrained. */
+  .check-badge {
+    width: 56px; height: 56px; border-radius: 999px;
+    background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.4);
+    display: flex; align-items: center; justify-content: center; color: var(--emerald-400);
+    animation: settle 320ms ease-out;
+  }
+  .check-badge svg { width: 26px; height: 26px; }
+  @keyframes settle {
+    from { opacity: 0; transform: translateY(4px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .resolve-title { font-size: 17px; font-weight: 600; color: var(--text-primary); margin: 0; }
+  .resolve-body { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin: 0; max-width: 280px; }
+
+  .btn-new {
+    min-width: 190px; min-height: 48px; padding: 0 22px; border-radius: 14px; border: none;
+    background: var(--sky-600); color: white; font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <a class="back-link" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Shore Dive
+      </a>
+      <div>
+        <h1>Safe-Return Timer</h1>
+        <p class="subtitle">An on-device countdown with a local alarm on expiry. v1 is intentionally local-only — read the disclaimer below before you start.</p>
+      </div>
+
+      <div class="resolve-wrap">
+        <div class="check-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+        </div>
+        <div>
+          <p class="resolve-title">Checked in — nice dive, La Jolla Cove shore dive.</p>
+        </div>
+        <button class="btn-new" type="button">Start a new timer</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

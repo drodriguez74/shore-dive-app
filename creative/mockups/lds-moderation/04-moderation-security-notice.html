@@ -1,0 +1,145 @@
+<!-- @dsCard group="LDS + Moderation" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Camera Sources — Moderation Queue (security-gap notice, persistent)</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+
+    --sky-400:#38bdf8;
+    --emerald-600:#059669; --emerald-500:#10b981;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --rose-400:#fb7185;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a; --zinc-600:#52525b;
+
+    --font-body: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-display: 'Space Grotesk', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:var(--font-body); color:var(--zinc-300);
+    display:flex; justify-content:center; padding:32px 16px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563; text-align:center; max-width:640px;}
+
+  .wrap{display:flex; gap:22px; align-items:flex-start; max-width:100%;}
+
+  .desk{
+    width:820px; max-width:100%; background:var(--depth-0);
+    border-radius:16px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.6); overflow:hidden;
+    height:640px; display:flex; flex-direction:column;
+  }
+
+  .page-head{padding:22px 32px 14px; border-bottom:1px solid var(--depth-border); flex-shrink:0;}
+  .back{font-size:12px; color:var(--zinc-500); text-decoration:none;}
+  h1{font-family:var(--font-display); font-size:19px; font-weight:700; color:#f8fafc; letter-spacing:-0.01em; margin:6px 0 2px;}
+
+  /* Scroll region simulates a moderator scrolling through a long queue —
+     the notice below is sticky WITHIN this region, proving it can't be
+     scrolled past and forgotten. */
+  .scroll-region{flex:1; overflow-y:auto; position:relative;}
+
+  .notice{
+    position:sticky; top:0; z-index:5;
+    display:flex; gap:11px; align-items:flex-start;
+    border-bottom:1px solid rgba(245,158,11,.35); background:#1a1206;
+    padding:16px 32px; box-shadow:0 8px 20px -8px rgba(0,0,0,.5);
+  }
+  .notice svg{flex-shrink:0; margin-top:1px; color:var(--amber-400);}
+  .notice-body{flex:1;}
+  .notice-eyebrow{
+    display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--amber-400); margin-bottom:5px;
+  }
+  .notice-eyebrow .pip{width:6px; height:6px; border-radius:50%; background:var(--amber-400);}
+  .notice p{margin:0 0 6px; font-size:12.5px; line-height:1.55; color:var(--amber-300);}
+  .notice p:last-child{margin-bottom:0;}
+  .notice strong{font-weight:700;}
+  .notice code{
+    font-family:var(--font-mono); font-size:11px; background:rgba(245,158,11,.14);
+    border-radius:4px; padding:1px 4px; color:var(--amber-300);
+  }
+
+  .content{padding:18px 32px 28px;}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+  .section-head h2{font-size:13px; font-weight:700; color:#f4f4f5; margin:0;}
+  .section-head .count{font-size:12px; color:var(--zinc-500);}
+
+  .row{
+    display:flex; align-items:center; gap:16px; padding:13px 4px;
+    border-bottom:1px solid var(--depth-border); border-top:1px solid var(--depth-border);
+    margin-top:-1px;
+  }
+  .row-name{font-size:13px; font-weight:600; color:#f4f4f5;}
+  .row-url{font-family:var(--font-mono); font-size:11px; color:var(--sky-400); margin-top:3px;}
+  .row-meta{font-size:11px; color:var(--zinc-500); margin-top:3px;}
+  .actions{margin-left:auto; display:flex; gap:8px; flex-shrink:0;}
+  .btn{min-height:36px; padding:0 14px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; border:1px solid transparent;}
+  .btn-approve{background:var(--emerald-600); color:white;}
+  .btn-reject{background:transparent; border-color:rgba(244,63,94,.5); color:var(--rose-400);}
+
+  .scroll-hint{
+    text-align:center; font-size:11px; color:var(--zinc-600); padding:6px 0 2px;
+  }
+
+  /* --- Annotation callouts, review-only, not part of the shipped UI --- */
+  .callouts{width:260px; display:flex; flex-direction:column; gap:14px; padding-top:70px;}
+  .callout{
+    border:1px dashed rgba(251,191,36,.5); border-radius:10px; padding:10px 12px;
+    font-size:11.5px; line-height:1.5; color:var(--amber-300); background:rgba(245,158,11,.05);
+  }
+  .callout b{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; color:var(--amber-400);}
+</style>
+</head>
+<body>
+<div class="device-note">Moderation queue — security-gap notice, designed as persistent · desktop, 820px frame. Scroll the queue below to confirm the notice stays pinned.</div>
+<div class="wrap">
+  <div class="desk">
+    <div class="page-head">
+      <a class="back" href="#">← Shore Dive</a>
+      <h1>Camera Sources — Moderation Queue</h1>
+    </div>
+
+    <div class="scroll-region" id="scrollRegion">
+      <div class="notice">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        <div class="notice-body">
+          <span class="notice-eyebrow"><span class="pip"></span>Security note — always shown, not dismissible</span>
+          <p><strong>This page is gated on "signed in," not "is a moderator."</strong></p>
+          <p>No moderator/admin role exists anywhere in this schema yet, so approve/reject actions here are only
+            checked against having a valid Supabase session — any signed-in user can act on candidates. That's a
+            real, deliberate gap (same one <code>0002_rls.sql</code> and <code>supabase/README.md</code> flag for
+            promoting community content to <code>VERIFIED</code>), not something this page can fix on its own —
+            see the header comments on this file and <code>src/app/api/camera-sources/[id]/review/route.ts</code>
+            for the full writeup.</p>
+        </div>
+      </div>
+
+      <div class="content">
+        <p class="scroll-hint">↓ scrolled content below — notice above stays pinned ↓</p>
+        <div class="section-head"><h2>Pending review</h2><span class="count">6 waiting</span></div>
+
+        <div class="row"><div><div class="row-name">Ocean Beach Pier Cam</div><div class="row-url">https://cams.oceanbeachsd.org/pier-north/stream.m3u8</div><div class="row-meta">Submitted Aug 5, 6:12 PM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+        <div class="row"><div><div class="row-name">La Jolla Cove — Lifeguard Tower</div><div class="row-url">https://sandiego.gov/beaches/webcams/lajolla-cove.jpg</div><div class="row-meta">Submitted Aug 6, 8:47 AM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+        <div class="row"><div><div class="row-name">Shell Beach Overlook</div><div class="row-url">https://windy.com/webcams/shell-beach-la-jolla-2</div><div class="row-meta">Submitted Aug 6, 3:30 PM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+        <div class="row"><div><div class="row-name">Cardiff Reef Cam</div><div class="row-url">https://surfline.com/cams/cardiff-reef</div><div class="row-meta">Submitted Aug 6, 4:02 PM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+        <div class="row"><div><div class="row-name">Windansea Overlook</div><div class="row-url">https://windy.com/webcams/windansea-3</div><div class="row-meta">Submitted Aug 6, 5:15 PM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+        <div class="row" style="border-bottom:none;"><div><div class="row-name">Tide Pools North Cam</div><div class="row-url">https://cams.oceanbeachsd.org/tidepools/stream.m3u8</div><div class="row-meta">Submitted Aug 6, 6:40 PM</div></div><div class="actions"><button class="btn btn-approve" type="button">Approve</button><button class="btn btn-reject" type="button">Reject</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout"><b>No dismiss control</b>Real component has no close/×. Nothing to tap once and forget — this design keeps that.</div>
+    <div class="callout"><b>Sticky, not a toast</b><code style="background:none;">position:sticky</code> inside the queue's own scroll region — pinned to the top of the content the moderator is actually acting on, not a page-level banner that scrolls away with the header.</div>
+    <div class="callout"><b>Reappears every visit</b>No "don't show again." Persisted per-session dismissal was considered and rejected — the underlying gap doesn't change between visits, so neither should the warning.</div>
+  </div>
+</div>
+</body>
+</html>

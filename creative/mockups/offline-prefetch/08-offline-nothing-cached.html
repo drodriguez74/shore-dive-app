@@ -1,0 +1,109 @@
+<!-- @dsCard group="Offline Prefetch" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline Prefetch — Offline, nothing cached</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-600:#0284c7;
+    --amber-300:#fcd34d; --amber-400:#fbbf24;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-900:#18181b;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --bg-canvas: #05070d; --bg-app: var(--depth-0); --bg-card: var(--depth-1); --border: var(--depth-border);
+    --text-primary: var(--zinc-50); --text-secondary: var(--zinc-400); --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200); --bg-app: var(--zinc-50); --bg-card: #ffffff; --border: var(--zinc-200);
+    --text-primary: var(--zinc-900); --text-secondary: var(--zinc-600); --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background: var(--bg-canvas); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; font-family: var(--font-body); }
+  .theme-toggle { position:fixed; top:16px; right:16px; z-index:10; display:flex; align-items:center; gap:6px; background:var(--bg-card); border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:12px; color:var(--text-secondary); cursor:pointer; }
+  .theme-toggle svg { width:14px; height:14px; }
+  .device { width:390px; max-width:100%; background: var(--bg-app); border-radius:32px; border:1px solid var(--border); box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55); overflow:hidden; display:flex; flex-direction:column; min-height:700px; }
+
+  .offline-pill {
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    background: rgba(245,158,11,.12); border-bottom: 1px solid rgba(245,158,11,.25);
+    color: var(--amber-300); font-size:11.5px; font-weight:600; padding:9px 12px;
+  }
+  :root[data-theme="light"] .offline-pill { color: #92400e; }
+  .offline-pill svg { width:13px; height:13px; }
+
+  .topbar { display:flex; align-items:center; gap:10px; padding:16px 20px 4px; }
+  .back-btn { width:30px; height:30px; border-radius:9px; background:var(--bg-card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); }
+  .back-btn svg { width:15px; height:15px; }
+  .topbar-title { font-size:12.5px; font-weight:600; color: var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; }
+
+  .empty-wrap {
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding: 32px 28px; gap:16px;
+  }
+  .empty-icon {
+    width:56px; height:56px; border-radius:16px; background: var(--bg-card); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; color: var(--zinc-500);
+  }
+  .empty-icon svg { width:26px; height:26px; }
+  .empty-title { font-size:16.5px; font-weight:700; color: var(--text-primary); margin:0; letter-spacing:-.005em; }
+  .empty-body { font-size:13px; line-height:1.65; color: var(--text-secondary); margin:0; max-width:280px; }
+  .empty-body b { color: var(--text-primary); font-weight:600; }
+
+  .btn-row { display:flex; flex-direction:column; gap:10px; width:100%; max-width:280px; margin-top:6px; }
+  .btn-retry-disabled {
+    min-height:48px; border-radius:12px; background: var(--bg-card); border:1px solid var(--border);
+    color: var(--text-tertiary); font-family:inherit; font-size:14px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:8px; cursor:not-allowed;
+  }
+  .btn-retry-disabled svg { width:15px; height:15px; }
+  .btn-back-link {
+    min-height:44px; border-radius:12px; background:transparent; border:none;
+    color: var(--sky-400); font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  :root[data-theme="light"] .btn-back-link { color: var(--sky-600); }
+
+  .hint {
+    font-size:11.5px; line-height:1.6; color: var(--text-tertiary); max-width:280px; margin-top:2px;
+  }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="offline-pill">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      Offline &mdash; showing only what&rsquo;s saved on this device
+    </div>
+    <div class="topbar">
+      <div class="back-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg></div>
+      <div class="topbar-title">Site detail</div>
+    </div>
+
+    <div class="empty-wrap">
+      <span class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5a4.5 4.5 0 0 1 4-4.47" opacity=".5"/><path d="M8 16.5a4.5 4.5 0 0 1 1.5-8.75A6 6 0 0 1 21 9.5a4.5 4.5 0 0 1-.5 9H8.5" opacity=".5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+      </span>
+      <h2 class="empty-title">Windansea Beach isn&rsquo;t saved on this device</h2>
+      <p class="empty-body">You&rsquo;re offline right now, and this site was <b>never prefetched</b> &mdash; so there&rsquo;s nothing stored here to show. This isn&rsquo;t a broken connection to fix; the data simply isn&rsquo;t on your phone yet.</p>
+
+      <div class="btn-row">
+        <button class="btn-retry-disabled" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          Try again when back online
+        </button>
+        <button class="btn-back-link" type="button">&larr; Back to map</button>
+      </div>
+
+      <p class="hint">Next time you have signal, open this site and tap &ldquo;Prefetch Now,&rdquo; or add it to a dive plan so the pre-trip checklist reminds you.</p>
+    </div>
+  </div>
+</body>
+</html>

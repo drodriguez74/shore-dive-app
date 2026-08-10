@@ -1,0 +1,245 @@
+<!-- @dsCard group="Onboarding" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Onboarding — Location permission priming</title>
+<style>
+  :root {
+    --depth-0: #0b1220;
+    --depth-1: #111a2e;
+    --depth-2: #182444;
+    --depth-3: #1f2e54;
+    --depth-border: #2a3a63;
+    --dive-blue: #3b73f2;
+    --dive-violet: #8365be;
+    --dive-pink: #dc577f;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --emerald-500: #10b981;
+    --violet-500: #8b5cf6;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --font-body: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #05070d;
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: center;
+    padding: 32px 12px;
+    min-height: 100vh;
+  }
+  .device {
+    width: 390px;
+    max-width: 100%;
+    height: 844px;
+    background: var(--depth-0);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px var(--depth-border);
+    position: relative;
+    color: #e6ebf7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- Context screen behind the sheet: the Map tab, simplified --- */
+  .context { position: relative; flex: 1; display: flex; flex-direction: column; }
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 18px 12px;
+  }
+  .app-header .title { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: #f2f5fb; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--gradient-dive);
+  }
+  .map-canvas {
+    flex: 1;
+    margin: 0 14px 14px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(59,115,242,0.18), transparent 45%),
+      radial-gradient(circle at 75% 65%, rgba(220,87,127,0.14), transparent 40%),
+      var(--depth-1);
+    border: 1px solid var(--depth-border);
+    position: relative;
+    overflow: hidden;
+  }
+  .map-canvas::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--depth-border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--depth-border) 1px, transparent 1px);
+    background-size: 34px 34px;
+    opacity: 0.35;
+  }
+  .pin { position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--depth-0); }
+  .pin.p1 { top: 38%; left: 28%; background: var(--emerald-500); }
+  .pin.p2 { top: 58%; left: 62%; background: var(--violet-500); }
+  .pin.p3 { top: 22%; left: 68%; background: var(--emerald-500); }
+  .locate-fab {
+    position: absolute; bottom: 16px; right: 14px;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--depth-2); border: 1px solid var(--depth-border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .locate-fab svg { width: 20px; height: 20px; stroke: var(--zinc-400); }
+
+  .bottom-nav {
+    display: flex; justify-content: space-around;
+    padding: 10px 8px 18px;
+    border-top: 1px solid var(--depth-border);
+    background: var(--depth-1);
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 44px; }
+  .nav-item svg { width: 21px; height: 21px; stroke: var(--zinc-500); }
+  .nav-item.active svg { stroke: var(--sky-400); }
+  .nav-item span { font-size: 10px; color: var(--zinc-500); }
+  .nav-item.active span { color: var(--sky-400); }
+
+  /* --- Scrim + bottom sheet: the contextual permission primer --- */
+  .scrim {
+    position: absolute; inset: 0;
+    background: rgba(4,7,14,0.55);
+  }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--depth-2);
+    border: 1px solid var(--depth-border);
+    border-bottom: none;
+    border-radius: 22px 22px 0 0;
+    padding: 10px 22px 26px;
+    box-shadow: 0 -20px 50px rgba(0,0,0,0.4);
+  }
+  .grabber { width: 36px; height: 4px; border-radius: 4px; background: var(--depth-border); margin: 0 auto 18px; }
+
+  .sheet-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .sheet-icon svg { width: 24px; height: 24px; stroke: var(--sky-400); }
+
+  .sheet h2 {
+    font-family: var(--font-display);
+    font-size: 19px; font-weight: 600; margin: 0 0 8px; color: #f5f7fc;
+  }
+  .sheet > p.lede { margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: #a7b2c9; }
+
+  .bullets { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .bullet { display: flex; gap: 10px; align-items: flex-start; }
+  .bullet svg { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; stroke: var(--emerald-500); }
+  .bullet.without svg { stroke: var(--zinc-500); }
+  .bullet p { margin: 0; font-size: 13px; line-height: 1.5; color: #cdd6ea; }
+  .bullet.without p { color: #8d97ad; }
+
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn-primary {
+    min-height: 48px; border-radius: 13px; border: none;
+    background: var(--sky-500); color: #051019;
+    font-family: var(--font-body); font-size: 15px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ghost {
+    min-height: 48px; border-radius: 13px; border: none;
+    background: transparent; color: #9aa5bd;
+    font-family: var(--font-body); font-size: 14px; font-weight: 500;
+    cursor: pointer;
+  }
+
+  .native-example {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--depth-border);
+  }
+  .native-example .caption { font-size: 11px; color: var(--zinc-500); margin: 0 0 10px; text-align: center; }
+  .native-dialog {
+    background: #f2f2f2; color: #1f1f1f; border-radius: 12px;
+    padding: 14px; font-size: 12.5px; box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  }
+  .native-dialog b { display: block; margin-bottom: 4px; font-size: 13px; }
+  .native-dialog .row { display: flex; gap: 8px; margin-top: 12px; }
+  .native-dialog button { flex: 1; padding: 8px 0; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; font-size: 12px; }
+  .native-dialog button.allow { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="context">
+    <div class="app-header">
+      <span class="title">Explore</span>
+      <div class="avatar" aria-hidden="true"></div>
+    </div>
+    <div class="map-canvas">
+      <span class="pin p1"></span>
+      <span class="pin p2"></span>
+      <span class="pin p3"></span>
+      <div class="locate-fab" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+      </div>
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.686-7-11a7 7 0 1 1 14 0c0 5.314-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <span>Map</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Safe-Return</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h11l3 3v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+        <span>Logbook</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-label="Location permission">
+    <div class="grabber"></div>
+    <div class="sheet-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.686-7-11a7 7 0 1 1 14 0c0 5.314-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+    </div>
+    <h2>See sites near you</h2>
+    <p class="lede">Turning on location centers the map on where you're standing, so nearby shore sites are the first thing you see — not a list you have to scroll to find.</p>
+
+    <div class="bullets">
+      <div class="bullet">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <p>Map opens centered on your current spot, zoomed to the coastline nearby.</p>
+      </div>
+      <div class="bullet without">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <p>Without it: the map opens to a default region — you can still search by name or browse the full list.</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" type="button">Allow location</button>
+      <button class="btn-ghost" type="button">Not now</button>
+    </div>
+
+    <div class="native-example">
+      <p class="caption">Tapping "Allow location" above triggers the browser's own prompt next — we never ask twice</p>
+      <div class="native-dialog">
+        <b>shore-dive.app wants to know your location</b>
+        Your browser controls this dialog directly — the app cannot skip or restyle it.
+        <div class="row">
+          <button>Block</button>
+          <button class="allow">Allow</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

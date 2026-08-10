@@ -1,0 +1,139 @@
+<!-- @dsCard group="LDS + Moderation" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Camera Sources — Moderation Queue (recently decided)</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-border:#2a3a63;
+
+    --sky-400:#38bdf8;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399;
+    --amber-300:#fcd34d; --amber-400:#fbbf24;
+    --rose-300:#fda4af; --rose-400:#fb7185;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46;
+
+    --font-body: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-display: 'Space Grotesk', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:var(--font-body); color:var(--zinc-300);
+    display:flex; justify-content:center; padding:32px 16px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563; text-align:center;}
+
+  .desk{
+    width:820px; max-width:100%; background:var(--depth-0);
+    border-radius:16px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.6); overflow:hidden;
+  }
+
+  .page-head{padding:22px 32px 14px; border-bottom:1px solid var(--depth-border);}
+  .back{font-size:12px; color:var(--zinc-500); text-decoration:none;}
+  h1{font-family:var(--font-display); font-size:19px; font-weight:700; color:#f8fafc; letter-spacing:-0.01em; margin:6px 0 2px;}
+
+  .body-pad{padding:20px 32px 32px;}
+
+  /* Pending kept as a quiet, collapsed summary card, not the vanished-notice
+     amber banner — this screen's job is the decided history, not re-litigating
+     the security gap on every screen (it's still one click away via the tab). */
+  .pending-summary{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid var(--depth-border); background:var(--depth-1); border-radius:12px;
+    padding:12px 16px; margin-bottom:28px;
+  }
+  .pending-summary .label{font-size:12.5px; color:var(--zinc-400);}
+  .pending-summary .label b{color:#f4f4f5; font-weight:700;}
+  .pending-summary a{font-size:12px; font-weight:600; color:var(--sky-400); text-decoration:none;}
+
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;}
+  .section-head h2{font-size:13px; font-weight:700; color:var(--zinc-400); margin:0; text-transform:uppercase; letter-spacing:.03em;}
+  .section-head .count{font-size:11.5px; color:var(--zinc-600);}
+  .section-sub{font-size:11.5px; color:var(--zinc-600); margin:0 0 14px;}
+
+  /* De-emphasized relative to the pending queue: thin rows, no card
+     elevation, smaller type, muted borders, no primary-weight buttons —
+     this is a read-only audit trail, never an action surface. */
+  .history{border-top:1px solid var(--zinc-800);}
+  .h-row{
+    display:flex; align-items:center; gap:14px; padding:9px 4px;
+    border-bottom:1px solid var(--zinc-800); font-size:12px;
+  }
+  .h-name{color:var(--zinc-400); font-weight:500; flex-shrink:0; width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .h-url{
+    font-family:var(--font-mono); font-size:10.5px; color:var(--zinc-600); flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .h-time{font-size:10.5px; color:var(--zinc-600); flex-shrink:0; width:150px; text-align:right; font-variant-numeric:tabular-nums;}
+
+  .badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:2px 7px;
+    font-size:10px; font-weight:500; border:1px solid; flex-shrink:0;
+  }
+  .badge-approved{border-color:rgba(52,211,153,.25); background:rgba(52,211,153,.07); color:var(--emerald-300);}
+  .badge-rejected{border-color:rgba(251,113,133,.25); background:rgba(251,113,133,.07); color:var(--rose-300);}
+
+  .empty{font-size:12px; color:var(--zinc-600); padding:14px 4px;}
+</style>
+</head>
+<body>
+<div class="device-note">Moderation queue — recently decided · desktop, 820px frame. De-emphasized relative to pending: thin rows, muted color, no action buttons.</div>
+<div class="desk">
+  <div class="page-head">
+    <a class="back" href="#">← Shore Dive</a>
+    <h1>Camera Sources — Moderation Queue</h1>
+  </div>
+
+  <div class="body-pad">
+    <div class="pending-summary">
+      <span class="label"><b>3</b> candidates waiting on review</span>
+      <a href="#">View pending queue →</a>
+    </div>
+
+    <div class="section-head">
+      <h2>Recently decided</h2>
+      <span class="count">last 20</span>
+    </div>
+    <p class="section-sub">Audit trail only — approving/rejecting happens in the pending queue above, not here.</p>
+
+    <div class="history">
+      <div class="h-row">
+        <span class="h-name">Sunset Cliffs North Cam</span>
+        <span class="badge badge-approved"><span aria-hidden="true">✓</span>Approved</span>
+        <span class="h-url">https://sandiego.gov/beaches/webcams/sunset-cliffs-n.jpg</span>
+        <span class="h-time">Aug 6, 2026, 9:14 AM</span>
+      </div>
+      <div class="h-row">
+        <span class="h-name">"BestDiveSpotsUSA" reel embed</span>
+        <span class="badge badge-rejected"><span aria-hidden="true">✕</span>Rejected</span>
+        <span class="h-url">https://tiktok.com/@user123/video/778812</span>
+        <span class="h-time">Aug 5, 2026, 7:52 PM</span>
+      </div>
+      <div class="h-row">
+        <span class="h-name">Ocean Beach Pier South Cam</span>
+        <span class="badge badge-approved"><span aria-hidden="true">✓</span>Approved</span>
+        <span class="h-url">https://cams.oceanbeachsd.org/pier-south/stream.m3u8</span>
+        <span class="h-time">Aug 5, 2026, 6:30 PM</span>
+      </div>
+      <div class="h-row">
+        <span class="h-name">Random parking-lot security cam</span>
+        <span class="badge badge-rejected"><span aria-hidden="true">✕</span>Rejected</span>
+        <span class="h-url">https://198.51.100.44:8080/mjpeg</span>
+        <span class="h-time">Aug 5, 2026, 2:11 PM</span>
+      </div>
+      <div class="h-row" style="border-bottom:none;">
+        <span class="h-name">Cabrillo Tide Pools Cam</span>
+        <span class="badge badge-approved"><span aria-hidden="true">✓</span>Approved</span>
+        <span class="h-url">https://nps.gov/cabr/webcams/tidepools.jpg</span>
+        <span class="h-time">Aug 4, 2026, 11:02 AM</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!-- @dsCard group="Onboarding" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Onboarding — Microphone permission priming</title>
+<style>
+  :root {
+    --depth-0: #0b1220;
+    --depth-1: #111a2e;
+    --depth-2: #182444;
+    --depth-3: #1f2e54;
+    --depth-border: #2a3a63;
+    --dive-blue: #3b73f2;
+    --dive-violet: #8365be;
+    --dive-pink: #dc577f;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --emerald-500: #10b981;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --font-body: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #05070d;
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: center;
+    padding: 32px 12px;
+    min-height: 100vh;
+  }
+  .device {
+    width: 390px;
+    max-width: 100%;
+    height: 844px;
+    background: var(--depth-0);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px var(--depth-border);
+    position: relative;
+    color: #e6ebf7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- Context: post-dive micro-prompt card, simplified --- */
+  .context { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; }
+  .prompt-card {
+    background: var(--depth-1); border: 1px solid var(--depth-border);
+    border-radius: 20px; padding: 22px 20px; margin-bottom: 90px;
+  }
+  .prompt-card .eyebrow { font-size: 11.5px; letter-spacing: 0.03em; color: var(--zinc-500); margin: 0 0 6px; text-transform: uppercase; }
+  .prompt-card h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0 0 8px; color: #f5f7fc; }
+  .prompt-card p { margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: #a7b2c9; }
+  .prompt-actions { display: flex; flex-direction: column; gap: 10px; }
+  .record-btn {
+    min-height: 48px; border-radius: 13px; border: none;
+    background: var(--sky-500); color: #051019; font-weight: 600; font-size: 14.5px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .record-btn svg { width: 17px; height: 17px; stroke: #051019; }
+  .manual-btn {
+    min-height: 48px; border-radius: 13px; border: 1px solid var(--depth-border);
+    background: transparent; color: #cdd6ea; font-weight: 500; font-size: 14px;
+  }
+
+  /* --- Scrim + sheet --- */
+  .scrim { position: absolute; inset: 0; background: rgba(4,7,14,0.55); }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--depth-2); border: 1px solid var(--depth-border); border-bottom: none;
+    border-radius: 22px 22px 0 0; padding: 10px 22px 26px;
+    box-shadow: 0 -20px 50px rgba(0,0,0,0.4);
+  }
+  .grabber { width: 36px; height: 4px; border-radius: 4px; background: var(--depth-border); margin: 0 auto 18px; }
+  .sheet-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+  }
+  .sheet-icon svg { width: 24px; height: 24px; stroke: var(--sky-400); }
+  .sheet h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0 0 8px; color: #f5f7fc; }
+  .sheet > p.lede { margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: #a7b2c9; }
+
+  .bullets { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .bullet { display: flex; gap: 10px; align-items: flex-start; }
+  .bullet svg { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; stroke: var(--emerald-500); }
+  .bullet.without svg { stroke: var(--zinc-500); }
+  .bullet p { margin: 0; font-size: 13px; line-height: 1.5; color: #cdd6ea; }
+  .bullet.without p { color: #8d97ad; }
+
+  .platform-note {
+    display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px;
+    background: var(--depth-1); border: 1px solid var(--depth-border); margin-bottom: 20px;
+  }
+  .platform-note svg { width: 16px; height: 16px; stroke: var(--zinc-400); flex-shrink: 0; margin-top: 1px; }
+  .platform-note p { margin: 0; font-size: 12px; line-height: 1.55; color: #9aa5bd; }
+
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn-primary { min-height: 48px; border-radius: 13px; border: none; background: var(--sky-500); color: #051019; font-family: var(--font-body); font-size: 15px; font-weight: 600; }
+  .btn-ghost { min-height: 48px; border-radius: 13px; border: none; background: transparent; color: #9aa5bd; font-family: var(--font-body); font-size: 14px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="context">
+    <div class="prompt-card">
+      <p class="eyebrow">Post-dive</p>
+      <h2>How was La Jolla Cove?</h2>
+      <p>Log depth, runtime, and conditions while it's fresh — talk it out or type it in.</p>
+      <div class="prompt-actions">
+        <button class="record-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          Record voice log
+        </button>
+        <button class="manual-btn" type="button">Enter manually</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-label="Microphone permission">
+    <div class="grabber"></div>
+    <div class="sheet-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+    </div>
+    <h2>Log a dive by talking</h2>
+    <p class="lede">Say your depth, runtime, and what you saw — we'll turn it into a draft logbook entry you review and edit before it saves.</p>
+
+    <div class="bullets">
+      <div class="bullet">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <p>Speech-to-text happens on your device — nothing is uploaded to log a dive.</p>
+      </div>
+      <div class="bullet">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <p>You always confirm or edit the transcribed fields before anything saves.</p>
+      </div>
+      <div class="bullet without">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <p>Without it: "Enter manually" opens the same logbook form, empty, no voice step.</p>
+      </div>
+    </div>
+
+    <div class="platform-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+      <p>Voice-to-text support varies by browser and is weak or missing on iPhone Safari — if that's you, manual entry may just work better.</p>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" type="button">Allow microphone</button>
+      <button class="btn-ghost" type="button">Not now — enter manually</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!-- @dsCard group="Map Exploration" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pin tap — preview bottom sheet</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+    --dive-blue:#3b73f2; --dive-violet:#8365be; --dive-pink:#dc577f;
+    --gradient-dive:linear-gradient(135deg,var(--dive-blue) 0%,var(--dive-violet) 50%,var(--dive-pink) 100%);
+    --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-400:#34d399; --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --rose-400:#fb7185; --violet-400:#a78bfa;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--zinc-300); display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+  .phone{
+    width:390px; max-width:100%; min-height:780px; background:var(--depth-0);
+    border-radius:32px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7); overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .map-bg{position:relative; flex:1; min-height:600px; overflow:hidden;}
+  .ocean{position:absolute; inset:0; background:radial-gradient(120% 90% at 20% 10%,#142244 0%,#0c1730 55%,#081123 100%);}
+  .ocean svg{position:absolute; inset:0; width:100%; height:100%;}
+  .coastline{fill:#1a2338; stroke:#2a3a63; stroke-width:1.5;}
+  .pin{position:absolute; left:205px; top:190px; transform:translate(-50%,-100%);}
+  .pin svg{filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));}
+
+  .scrim{
+    position:absolute; inset:0; background:rgba(3,6,14,.55);
+  }
+
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0;
+    background:var(--depth-2); border:1px solid var(--depth-border); border-bottom:none;
+    border-radius:20px 20px 0 0; padding:10px 18px 20px;
+    box-shadow:0 -20px 50px -12px rgba(0,0,0,.6);
+  }
+  .drag-handle{width:36px; height:4px; border-radius:99px; background:var(--depth-border); margin:0 auto 14px;}
+
+  .sheet-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+  .site-name{font-size:18px; font-weight:700; color:#f8fafc; letter-spacing:-.01em;}
+  .site-sub{font-size:12px; color:var(--zinc-500); margin-top:2px;}
+  .close-btn{
+    width:32px; height:32px; border-radius:9px; background:var(--depth-1); border:1px solid var(--depth-border);
+    display:flex; align-items:center; justify-content:center; color:var(--zinc-400); flex-shrink:0;
+  }
+
+  .badge-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px 5px 9px;
+    font-size:12px; font-weight:500; border:1px solid;
+  }
+  .badge-verified{border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.1); color:#7dd3fc;}
+  .badge-mpa{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.1); color:#fcd34d;}
+
+  .snippet{font-size:13.5px; line-height:1.55; color:var(--zinc-300); margin-top:14px;}
+
+  .stat-row{display:flex; gap:10px; margin-top:14px;}
+  .stat{
+    flex:1; background:var(--depth-1); border:1px solid var(--depth-border); border-radius:12px;
+    padding:9px 10px;
+  }
+  .stat-label{font-size:10.5px; color:var(--zinc-500); text-transform:uppercase; letter-spacing:.04em;}
+  .stat-value{font-size:14px; font-weight:600; color:#f4f4f5; margin-top:2px; font-variant-numeric:tabular-nums;}
+
+  .cta-row{display:flex; gap:10px; margin-top:16px;}
+  .btn-primary{
+    flex:1; height:48px; border-radius:12px; background:var(--sky-600); color:white; border:none;
+    font-size:14.5px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-secondary{
+    width:48px; height:48px; border-radius:12px; background:var(--depth-1); border:1px solid var(--depth-border);
+    color:var(--zinc-300); display:flex; align-items:center; justify-content:center;
+  }
+</style>
+</head>
+<body>
+<div class="device-note">Pin tap → compact preview (bottom sheet)</div>
+<div class="phone">
+  <div class="map-bg">
+    <div class="ocean">
+      <svg viewBox="0 0 390 600" preserveAspectRatio="xMidYMid slice">
+        <path class="coastline" d="M0,0 L150,0 C120,60 140,110 95,150 C60,180 90,230 60,270 C30,300 55,340 20,380 L0,380 Z"/>
+      </svg>
+    </div>
+    <div class="pin">
+      <svg width="34" height="43" viewBox="0 0 24 30">
+        <path d="M12 1C6.5 1 2 5.4 2 10.8 2 18 12 29 12 29S22 18 22 10.8C22 5.4 17.5 1 12 1Z" fill="var(--amber-500)" stroke="var(--sky-400)" stroke-width="2"/>
+        <circle cx="12" cy="11" r="3.6" fill="#0b1220" opacity=".55"/>
+      </svg>
+    </div>
+    <div class="scrim"></div>
+
+    <div class="sheet">
+      <div class="drag-handle"></div>
+      <div class="sheet-top">
+        <div>
+          <div class="site-name">Sunset Reef</div>
+          <div class="site-sub">Shore entry &middot; 1.1 mi away</div>
+        </div>
+        <div class="close-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+      </div>
+
+      <div class="badge-row">
+        <span class="badge badge-verified">✓ Verified</span>
+        <span class="badge badge-mpa">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+          Marine Protected Area
+        </span>
+      </div>
+
+      <p class="snippet">Sheltered cove entry over a reef shelf. Best on an incoming tide — surge picks up past the outer rocks.</p>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-label">Hazard reports</div>
+          <div class="stat-value">1 open</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Cached</div>
+          <div class="stat-value">Not yet</div>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <button class="btn-primary" type="button">
+          View full site
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>
+        </button>
+        <div class="btn-secondary" title="Directions">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,11 22,2 13,21 11,13 3,11"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

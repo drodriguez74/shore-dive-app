@@ -3,6 +3,19 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Depth scale — dark-first neutrals, see creative/design-system/DESIGN_SYSTEM.md §2.1 */
+  --depth-0: #0b1220; /* matches manifest.ts background_color/theme_color exactly */
+  --depth-1: #111a2e;
+  --depth-2: #182444;
+  --depth-3: #1f2e54;
+  --depth-border: #2a3a63;
+
+  /* Brand accent — sampled directly from dive.png, see DESIGN_SYSTEM.md §1 */
+  --dive-blue: #3b73f2;
+  --dive-violet: #8365be;
+  --dive-pink: #dc577f;
+  --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
 }
 
 @theme inline {
@@ -10,11 +23,30 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-space-grotesk);
+
+  --color-depth-0: var(--depth-0);
+  --color-depth-1: var(--depth-1);
+  --color-depth-2: var(--depth-2);
+  --color-depth-3: var(--depth-3);
+  --color-depth-border: var(--depth-border);
+  --color-dive-blue: var(--dive-blue);
+  --color-dive-violet: var(--dive-violet);
+  --color-dive-pink: var(--dive-pink);
 }
+
+/*
+ * Semantic colors are deliberately NOT redefined here — they're already
+ * correct as plain Tailwind utility classes (bg-sky-600, bg-emerald-500,
+ * bg-amber-500, bg-rose-500, bg-violet-500, text-zinc-*, etc.) per
+ * DESIGN_SYSTEM.md §2.2. Adding a parallel --color-primary/--color-danger
+ * layer on top of hues Tailwind already exposes would just be two names
+ * for the same thing — a real risk of drift, not a real benefit.
+ */
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: var(--depth-0);
     --foreground: #ededed;
   }
 }
@@ -23,4 +55,18 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Utility class for the one deliberately-decorative brand element. Use
+   sparingly — see DESIGN_SYSTEM.md §2.3 for exactly where this is (and
+   is not) appropriate. */
+.bg-gradient-dive {
+  background-image: var(--gradient-dive);
+}
+
+.text-gradient-dive {
+  background-image: var(--gradient-dive);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }

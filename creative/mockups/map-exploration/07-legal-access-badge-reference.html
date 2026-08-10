@@ -1,0 +1,178 @@
+<!-- @dsCard group="Map Exploration" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Legal/access-status badge system — reference sheet</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+    --dive-blue:#3b73f2; --dive-violet:#8365be; --dive-pink:#dc577f;
+    --gradient-dive:linear-gradient(135deg,var(--dive-blue) 0%,var(--dive-violet) 50%,var(--dive-pink) 100%);
+    --sky-400:#38bdf8;
+    --emerald-400:#34d399;
+    --amber-400:#fbbf24;
+    --rose-400:#fb7185;
+    --violet-400:#a78bfa;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--zinc-300); display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+  .wrap{width:390px; max-width:100%;}
+  .header{padding:4px 4px 18px;}
+  .brand{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .brand-mark{width:22px; height:22px; border-radius:7px; background:var(--gradient-dive);}
+  .brand-name{font-weight:700; color:#f4f4f5; font-size:13px;}
+  .title{font-size:19px; font-weight:700; color:#f8fafc; letter-spacing:-.01em;}
+  .subtitle{font-size:12.5px; color:var(--zinc-500); margin-top:4px; line-height:1.55;}
+
+  .group{margin-bottom:22px;}
+  .group-title{font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--zinc-500); margin-bottom:10px;}
+
+  .card{
+    background:var(--depth-1); border:1px solid var(--depth-border); border-radius:14px;
+    padding:14px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;
+  }
+  .card-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px 5px 9px;
+    font-size:12px; font-weight:500; border:1px solid;
+  }
+  .enum-val{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10.5px; color:var(--zinc-500);}
+  .card-desc{font-size:12px; line-height:1.5; color:var(--zinc-400);}
+
+  .badge-open{border-color:rgba(52,211,153,.4); background:rgba(52,211,153,.1); color:#6ee7b7;}
+  .badge-mpa{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.1); color:#fcd34d;}
+  .badge-seasonal{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.1); color:#fcd34d;}
+  .badge-private{border-color:rgba(251,113,133,.4); background:rgba(251,113,133,.1); color:#fda4af;}
+  .badge-other{border-color:rgba(251,113,133,.4); background:rgba(251,113,133,.1); color:#fda4af;}
+  .badge-unassessed{border-color:rgba(161,161,170,.4); background:rgba(161,161,170,.08); color:#d4d4d8; border-style:dashed;}
+
+  .badge-verified{border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.1); color:#7dd3fc;}
+  .badge-community{border-color:rgba(167,139,250,.3); background:rgba(167,139,250,.1); color:#c4b5fd;}
+  .badge-model{border-color:rgba(161,161,170,.4); background:rgba(161,161,170,.1); color:#d4d4d8; border-style:dashed;}
+
+  .note{
+    margin-top:6px; padding:12px 13px; background:var(--depth-1); border:1px solid var(--depth-border);
+    border-radius:12px; font-size:12px; line-height:1.6; color:var(--zinc-400);
+  }
+  .note b{color:var(--zinc-200);}
+</style>
+</head>
+<body>
+<div class="device-note">Reference sheet — not a screen, a badge-system legend</div>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">Shore Dive</div>
+    </div>
+    <div class="title">Legal/access-status badges</div>
+    <div class="subtitle">All five <code>legal_access_status</code> states, side by side with the existing <code>ProvenanceBadge</code> family for comparison. Same pill shape/sizing so both read as one badge system &mdash; different icon language (outline glyphs vs. text marks) and color logic so the two axes are never confused.</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Legal / access status &middot; 5 states</div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-open">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><polyline points="9,12 11,14 15,10"/></svg>
+          Open access
+        </span>
+        <span class="enum-val">'open'</span>
+      </div>
+      <div class="card-desc">Confirmed &mdash; a check was done and no restriction was found. The one genuinely reassuring state; never the default assumption.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-mpa">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+          Marine Protected Area
+        </span>
+        <span class="enum-val">'marine_protected_area'</span>
+      </div>
+      <div class="card-desc">Diving is often still allowed &mdash; caution tier, flags "check the rules," not "stay out."</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-seasonal">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="14" x2="15" y2="18"/><line x1="15" y1="14" x2="9" y2="18"/></svg>
+          Seasonal closure
+        </span>
+        <span class="enum-val">'seasonal_closure'</span>
+      </div>
+      <div class="card-desc">Time-bound restriction (nesting season, kelp restoration, etc). Same caution tier as MPA.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-private">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Private property
+        </span>
+        <span class="enum-val">'private_property'</span>
+      </div>
+      <div class="card-desc">Access requires explicit permission. Higher-severity tier &mdash; this is not a "check the rules," it's "ask first."</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-other">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r=".5" fill="currentColor"/></svg>
+          Access restricted
+        </span>
+        <span class="enum-val">'restricted_other'</span>
+      </div>
+      <div class="card-desc">Catch-all for a restriction that isn't MPA/seasonal/private. Same severity tier as private property; copy stays generic since the underlying reason varies.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-unassessed">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1.9-1.1 1.7"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+          Not yet assessed
+        </span>
+        <span class="enum-val">null</span>
+      </div>
+      <div class="card-desc"><b>Distinct from "open."</b> Nobody has checked. Dashed border deliberately reuses ProvenanceBadge's MODEL_INFERRED grammar ("unconfirmed"), not invented fresh.</div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Provenance &middot; for comparison, unchanged from src/components/provenance-badge.tsx</div>
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-verified">✓ Verified</span>
+        <span class="enum-val">'VERIFIED'</span>
+      </div>
+      <div class="card-desc">Confirmed by an authoritative or explicitly-verified source.</div>
+    </div>
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-community">◐ Community</span>
+        <span class="enum-val">'COMMUNITY'</span>
+      </div>
+      <div class="card-desc">Submitted by the community &mdash; not independently verified.</div>
+    </div>
+    <div class="card">
+      <div class="card-top">
+        <span class="badge badge-model">✦ Model estimate</span>
+        <span class="enum-val">'MODEL_INFERRED'</span>
+      </div>
+      <div class="card-desc">Forward-compat only (Task 18) &mdash; not wired to sites/hazard_reports today, which only carry the two-state model.</div>
+    </div>
+  </div>
+
+  <div class="note"><b>Why two separate badge systems, not one shared vocabulary:</b> provenance answers "who vouches for this data" &mdash; legal/access status answers "can I legally dive here." A single VERIFIED/COMMUNITY/etc. label can't carry both without forcing a false link between them (e.g. implying "verified" data is also "legally clear" data, which isn't true &mdash; a VERIFIED site can still be in an MPA). Every screen in this flow shows both badges together, never one standing in for the other.</div>
+</div>
+</body>
+</html>

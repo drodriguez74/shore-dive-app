@@ -1,0 +1,183 @@
+<!-- @dsCard group="LDS + Moderation" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Camera Sources — Moderation Queue (pending)</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981; --emerald-600:#059669;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b; --amber-800:#92400e;
+    --rose-300:#fda4af; --rose-400:#fb7185; --rose-500:#f43f5e; --rose-600:#e11d48;
+    --violet-300:#c4b5fd; --violet-400:#a78bfa;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a; --zinc-600:#52525b;
+
+    --font-body: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-display: 'Space Grotesk', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:var(--font-body); color:var(--zinc-300);
+    display:flex; justify-content:center; padding:32px 16px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563; text-align:center;}
+
+  /* Desktop-reasonable width: this is desk/admin tooling per CREATIVE_BACKLOG's
+     own framing ("less consumer-glamorous... clarity and moderator efficiency
+     matter more than brand moments"), reviewed at a keyboard+mouse, not a
+     phone — no reason to force a 390px mobile frame here. */
+  .desk{
+    width:820px; max-width:100%; background:var(--depth-0);
+    border-radius:16px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.6); overflow:hidden;
+  }
+
+  .page-head{padding:26px 32px 18px; border-bottom:1px solid var(--depth-border);}
+  .back{font-size:12px; color:var(--zinc-500); text-decoration:none;}
+  h1{font-family:var(--font-display); font-size:21px; font-weight:700; color:#f8fafc; letter-spacing:-0.01em; margin:8px 0 4px;}
+  .subhead{font-size:13px; color:var(--zinc-500); margin:0; max-width:60ch; line-height:1.5;}
+
+  .body-pad{padding:20px 32px 32px;}
+
+  /* --- Security gap notice: same content weight as the real component,
+     no close/dismiss affordance anywhere in the markup on purpose --- */
+  .notice{
+    display:flex; gap:11px; align-items:flex-start;
+    border:1px solid rgba(245,158,11,.35); background:rgba(245,158,11,.08);
+    border-radius:14px; padding:14px 16px; margin-bottom:26px;
+  }
+  .notice svg{flex-shrink:0; margin-top:1px; color:var(--amber-400);}
+  .notice p{margin:0 0 6px; font-size:12.5px; line-height:1.55; color:var(--amber-300);}
+  .notice p:last-child{margin-bottom:0;}
+  .notice strong{font-weight:700; color:var(--amber-300);}
+  .notice code{
+    font-family:var(--font-mono); font-size:11px; background:rgba(245,158,11,.14);
+    border-radius:4px; padding:1px 4px; color:var(--amber-300);
+  }
+
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+  .section-head h2{font-size:13px; font-weight:700; color:#f4f4f5; margin:0;}
+  .section-head .count{font-size:12px; color:var(--zinc-500); font-variant-numeric:tabular-nums;}
+
+  /* --- Dense row: name/badge, url, meta on the left; actions on the right --- */
+  .queue{border-top:1px solid var(--depth-border);}
+  .row{
+    display:flex; align-items:center; gap:16px; padding:13px 4px;
+    border-bottom:1px solid var(--depth-border);
+  }
+  .row-main{flex:1; min-width:0;}
+  .row-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .row-name{font-size:13.5px; font-weight:600; color:#f4f4f5;}
+  .row-url{
+    font-family:var(--font-mono); font-size:11.5px; color:var(--sky-400); margin-top:4px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:520px;
+  }
+  .row-meta{font-size:11.5px; color:var(--zinc-500); margin-top:4px;}
+
+  .badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 8px;
+    font-size:10.5px; font-weight:500; border:1px solid; flex-shrink:0;
+  }
+  .badge-pending{border-color:rgba(251,191,36,.3); background:rgba(251,191,36,.1); color:var(--amber-300);}
+
+  .actions{display:flex; gap:8px; flex-shrink:0;}
+  /* Desk/mouse context, not a wet-hands touch context: 36px height clears
+     WCAG 2.5.8's 24px AA floor with comfortable margin while staying denser
+     than the 44px mobile floor DESIGN_SYSTEM.md §4 sets for touch — see
+     lds-moderation.md rationale for the full reasoning. 12px gap between
+     Approve/Reject guards against a mis-click on an action that (for now)
+     has no undo. */
+  .btn{
+    min-height:36px; padding:0 14px; border-radius:8px; font-size:12.5px; font-weight:600;
+    cursor:pointer; border:1px solid transparent; display:inline-flex; align-items:center;
+  }
+  .btn-approve{background:var(--emerald-600); color:white;}
+  .btn-approve:hover{background:var(--emerald-500);}
+  .btn-reject{background:transparent; border-color:rgba(244,63,94,.5); color:var(--rose-400);}
+  .btn-reject:hover{background:rgba(244,63,94,.1);}
+
+  .empty{font-size:12.5px; color:var(--zinc-500); padding:16px 4px;}
+</style>
+</head>
+<body>
+<div class="device-note">Moderation queue — pending view · desktop, 820px frame (admin/desk tooling, not mobile-first — see file footer)</div>
+<div class="desk">
+  <div class="page-head">
+    <a class="back" href="#">← Shore Dive</a>
+    <h1>Camera Sources — Moderation Queue</h1>
+    <p class="subhead">Human review for webcam-allowlist candidates. A row is never usable/embeddable by the app
+      until it's approved here.</p>
+  </div>
+
+  <div class="body-pad">
+    <div class="notice">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div>
+        <p><strong>This page is gated on "signed in," not "is a moderator."</strong></p>
+        <p>No moderator/admin role exists anywhere in this schema yet, so approve/reject actions here are only
+          checked against having a valid Supabase session — any signed-in user can act on candidates. That's a
+          real, deliberate gap (same one <code>0002_rls.sql</code> and <code>supabase/README.md</code> flag for
+          promoting community content to <code>VERIFIED</code>), not something this page can fix on its own.</p>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Pending review</h2>
+      <span class="count">3 waiting</span>
+    </div>
+    <div class="queue">
+      <div class="row">
+        <div class="row-main">
+          <div class="row-top">
+            <span class="row-name">Ocean Beach Pier Cam</span>
+            <span class="badge badge-pending"><span aria-hidden="true">…</span>Pending review</span>
+          </div>
+          <div class="row-url">https://cams.oceanbeachsd.org/pier-north/stream.m3u8</div>
+          <div class="row-meta">Site: site_ob_pier_001 · Submitted Aug 5, 2026, 6:12 PM</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-approve" type="button">Approve</button>
+          <button class="btn btn-reject" type="button">Reject</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row-main">
+          <div class="row-top">
+            <span class="row-name">La Jolla Cove — Lifeguard Tower</span>
+            <span class="badge badge-pending"><span aria-hidden="true">…</span>Pending review</span>
+          </div>
+          <div class="row-url">https://sandiego.gov/beaches/webcams/lajolla-cove.jpg</div>
+          <div class="row-meta">Site: site_la_jolla_cove · Submitted Aug 6, 2026, 8:47 AM</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-approve" type="button">Approve</button>
+          <button class="btn btn-reject" type="button">Reject</button>
+        </div>
+      </div>
+
+      <div class="row" style="border-bottom:none;">
+        <div class="row-main">
+          <div class="row-top">
+            <span class="row-name">Shell Beach Overlook (unverified submitter)</span>
+            <span class="badge badge-pending"><span aria-hidden="true">…</span>Pending review</span>
+          </div>
+          <div class="row-url">https://windy.com/webcams/shell-beach-la-jolla-2</div>
+          <div class="row-meta">Site: — (unassigned) · Submitted Aug 6, 2026, 3:30 PM</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-approve" type="button">Approve</button>
+          <button class="btn btn-reject" type="button">Reject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

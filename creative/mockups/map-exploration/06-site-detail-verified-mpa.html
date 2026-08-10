@@ -1,0 +1,173 @@
+<!-- @dsCard group="Map Exploration" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Site detail — Verified, Marine Protected Area</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+    --dive-blue:#3b73f2; --dive-violet:#8365be; --dive-pink:#dc577f;
+    --gradient-dive:linear-gradient(135deg,var(--dive-blue) 0%,var(--dive-violet) 50%,var(--dive-pink) 100%);
+    --sky-400:#38bdf8; --sky-600:#0284c7;
+    --emerald-400:#34d399;
+    --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --rose-400:#fb7185;
+    --violet-400:#a78bfa;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--zinc-300); display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+  .phone{
+    width:390px; max-width:100%; min-height:844px; background:var(--depth-0);
+    border-radius:32px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7); overflow:hidden; display:flex; flex-direction:column;
+  }
+  .topbar{display:flex; align-items:center; gap:10px; padding:16px 16px 12px;}
+  .back-btn{
+    width:36px; height:36px; border-radius:10px; background:var(--depth-2); border:1px solid var(--depth-border);
+    display:flex; align-items:center; justify-content:center; color:var(--zinc-300); flex-shrink:0;
+  }
+  .topbar-title{font-size:14px; font-weight:600; color:#f4f4f5;}
+  .scroll{flex:1; overflow-y:auto;}
+  .hero{
+    margin:0 16px; height:130px; border-radius:16px; background:var(--depth-1);
+    border:1px solid var(--depth-border); display:flex; align-items:center; justify-content:center;
+  }
+  .hero svg{opacity:.35; color:var(--amber-400);}
+  .content{padding:16px;}
+  .site-name{font-size:22px; font-weight:700; color:#f8fafc; letter-spacing:-.01em;}
+  .site-sub{font-size:12.5px; color:var(--zinc-500); margin-top:3px;}
+  .badge-row{display:flex; flex-wrap:wrap; gap:7px; margin-top:12px;}
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px 5px 9px;
+    font-size:12px; font-weight:500; border:1px solid;
+  }
+  .badge-verified{border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.1); color:#7dd3fc;}
+  .badge-mpa{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.1); color:#fcd34d;}
+  .badge-stale{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.12); color:#fcd34d;}
+
+  .prefetch-row{
+    display:flex; align-items:center; gap:12px; margin-top:16px; padding:12px 14px;
+    background:var(--depth-1); border:1px solid var(--depth-border); border-radius:12px; flex-wrap:wrap;
+  }
+  .btn-prefetch{border-radius:8px; background:var(--sky-600); padding:9px 14px; font-size:13px; font-weight:500; color:white; border:none;}
+
+  .desc{font-size:13.5px; line-height:1.6; color:var(--zinc-300); margin-top:18px;}
+  .section{margin-top:22px;}
+  .section-title{font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--zinc-500); margin-bottom:9px;}
+
+  .legal-block{
+    display:flex; gap:10px; padding:12px 13px; background:rgba(245,158,11,.07);
+    border:1px solid rgba(245,158,11,.3); border-radius:12px;
+  }
+  .legal-icon{color:#fcd34d; flex-shrink:0; margin-top:1px;}
+  .legal-text{font-size:12.5px; line-height:1.55; color:var(--zinc-300);}
+  .legal-text b{color:#f4f4f5;}
+  .legal-link{display:inline-flex; align-items:center; gap:4px; margin-top:8px; font-size:12px; font-weight:600; color:#fcd34d;}
+
+  .coord-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;
+    padding:11px 13px; background:var(--depth-1); border:1px solid var(--depth-border); border-radius:12px;
+  }
+  .coord-text{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--zinc-300); font-variant-numeric:tabular-nums;}
+  .coord-copy{color:var(--zinc-500); display:flex; align-items:center;}
+
+  .hazard-empty{
+    padding:14px; background:var(--depth-1); border:1px dashed var(--depth-border); border-radius:12px;
+    font-size:12.5px; color:var(--zinc-500); line-height:1.55;
+  }
+
+  .cta-row{display:flex; gap:10px; margin-top:24px; padding-bottom:24px;}
+  .btn-secondary{
+    flex:1; height:48px; border-radius:12px; background:var(--depth-1); border:1px solid var(--depth-border);
+    color:var(--zinc-200); font-size:13.5px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+</style>
+</head>
+<body>
+<div class="device-note">Site detail — VERIFIED + legal_access_status: marine_protected_area (stale cache)</div>
+<div class="phone">
+  <div class="topbar">
+    <div class="back-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
+    </div>
+    <div class="topbar-title">Site detail</div>
+  </div>
+
+  <div class="scroll">
+    <div class="hero">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16" r=".6" fill="currentColor"/></svg>
+    </div>
+
+    <div class="content">
+      <div class="site-name">Sunset Reef</div>
+      <div class="site-sub">32.8402, &minus;117.2789 &middot; Shore entry</div>
+
+      <div class="badge-row">
+        <span class="badge badge-verified">✓ Verified</span>
+        <span class="badge badge-mpa">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+          Marine Protected Area
+        </span>
+      </div>
+
+      <div class="prefetch-row">
+        <span class="badge badge-stale" style="margin:0;">⚠ Stale — cached 19 hours ago</span>
+        <button class="btn-prefetch" type="button">Prefetch Now</button>
+      </div>
+
+      <p class="desc">Sheltered cove entry over a reef shelf inside a designated Marine Protected Area. Best on an incoming tide &mdash; surge picks up past the outer rocks.</p>
+
+      <div class="section">
+        <div class="section-title">Legal &amp; access status</div>
+        <div class="legal-block">
+          <div class="legal-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16" r=".6" fill="currentColor"/></svg>
+          </div>
+          <div class="legal-text">
+            <b>Marine Protected Area.</b> Diving is generally permitted, but take/collection rules and seasonal limits may apply here. Verify current regulations before your dive &mdash; this badge flags the concern, it isn&rsquo;t a permit check.
+            <div class="legal-link">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              View regulation source
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Coordinates</div>
+        <div class="coord-row">
+          <span class="coord-text">32.840200, &minus;117.278900</span>
+          <span class="coord-copy" title="Copy coordinates">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Hazard reports</div>
+        <div class="hazard-empty">No hazard reports on file. This means none have been submitted &mdash; not that the site has been checked and cleared.</div>
+      </div>
+
+      <div class="cta-row">
+        <button class="btn-secondary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+          Add to dive plan
+        </button>
+        <button class="btn-secondary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,11 22,2 13,21 11,13 3,11"/></svg>
+          Directions
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

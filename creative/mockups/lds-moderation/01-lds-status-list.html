@@ -1,0 +1,227 @@
+<!-- @dsCard group="LDS + Moderation" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fill Stations &amp; Gear — list + map</title>
+<style>
+  :root{
+    --depth-0:#0b1220; --depth-1:#111a2e; --depth-2:#182444; --depth-3:#1f2e54; --depth-border:#2a3a63;
+    --dive-blue:#3b73f2; --dive-violet:#8365be; --dive-pink:#dc577f;
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7; --sky-800:#075985;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981; --emerald-700:#047857; --emerald-800:#065f46;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b; --amber-700:#b45309; --amber-800:#92400e;
+    --rose-400:#fb7185; --rose-500:#f43f5e; --rose-700:#be123c;
+    --violet-300:#c4b5fd; --violet-400:#a78bfa; --violet-500:#8b5cf6; --violet-600:#7c3aed;
+    --zinc-300:#d4d4d8; --zinc-400:#a1a1aa; --zinc-500:#71717a; --zinc-600:#52525b;
+
+    --font-body: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: 'Space Grotesk', 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#05070c; font-family:var(--font-body); color:var(--zinc-300);
+    display:flex; justify-content:center; padding:24px 12px; min-height:100vh;
+  }
+  .device-note{position:fixed; top:8px; left:50%; transform:translateX(-50%); font-size:11px; color:#4b5563;}
+
+  .phone{
+    width:390px; max-width:100%; min-height:780px; background:var(--depth-0);
+    border-radius:32px; border:1px solid var(--depth-border);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7); overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+
+  .topbar{padding:18px 18px 4px;}
+  .back{font-size:12px; color:var(--zinc-500); text-decoration:none;}
+  h1{font-family:var(--font-display); font-size:19px; font-weight:700; color:#f8fafc; letter-spacing:-0.01em; margin:6px 0 2px;}
+  .subhead{font-size:12.5px; color:var(--zinc-500); margin:0;}
+
+  /* --- Map preview strip: reuses site-map.tsx's colored-dot pattern at a glance --- */
+  .map-preview{
+    margin:14px 18px 0; border-radius:14px; overflow:hidden; position:relative; height:132px;
+    border:1px solid var(--depth-border);
+    background:radial-gradient(120% 140% at 15% 0%, #14213f 0%, #0d1730 55%, #081123 100%);
+  }
+  .map-preview svg.coast{position:absolute; inset:0; width:100%; height:100%;}
+  .map-preview .coast-path{fill:#182444; stroke:#243254; stroke-width:1;}
+  .map-dot{position:absolute; width:13px; height:13px; border-radius:50%; border:2px solid; box-shadow:0 2px 6px rgba(0,0,0,.5);}
+  .map-dot.open{background:var(--emerald-500); border-color:var(--emerald-700);}
+  .map-dot.limited{background:var(--amber-500); border-color:var(--amber-700);}
+  .map-dot.unknown{background:var(--zinc-400); border-color:var(--zinc-600);}
+  .map-caption{
+    position:absolute; left:10px; bottom:8px; font-size:10.5px; color:var(--zinc-400);
+    background:rgba(5,7,12,.55); border-radius:999px; padding:3px 8px; backdrop-filter:blur(2px);
+  }
+  .map-open-btn{
+    position:absolute; right:8px; top:8px; font-size:10.5px; font-weight:600; color:#f4f4f5;
+    background:rgba(17,26,46,.75); border:1px solid var(--depth-border); border-radius:8px; padding:5px 8px;
+  }
+
+  /* --- Legend row: what the dots mean, kept short (utilitarian, not a full page) --- */
+  .legend{display:flex; gap:12px; margin:10px 18px 0; flex-wrap:wrap;}
+  .legend-item{display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--zinc-500);}
+  .legend-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .legend-dot.open{background:var(--emerald-500);}
+  .legend-dot.limited{background:var(--amber-500);}
+  .legend-dot.closed{background:var(--rose-500);}
+  .legend-dot.unknown{background:var(--zinc-400);}
+
+  /* --- List: dense, scannable rows --- */
+  .list-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin:18px 18px 8px;
+  }
+  .list-head h2{font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--zinc-500); margin:0;}
+  .list-count{font-size:11px; color:var(--zinc-600); font-variant-numeric:tabular-nums;}
+
+  .list{display:flex; flex-direction:column; margin:0 12px 16px; border-top:1px solid var(--depth-border);}
+  .row{
+    display:flex; gap:10px; align-items:flex-start; padding:12px 6px;
+    border-bottom:1px solid var(--depth-border);
+  }
+  .row-dot{width:11px; height:11px; border-radius:50%; border:2px solid; margin-top:3px; flex-shrink:0;}
+  .row-dot.open{background:var(--emerald-500); border-color:var(--emerald-700);}
+  .row-dot.limited{background:var(--amber-500); border-color:var(--amber-700);}
+  .row-dot.unknown{background:var(--zinc-400); border-color:var(--zinc-600);}
+
+  .row-main{flex:1; min-width:0;}
+  .row-top{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .row-name{font-size:13.5px; font-weight:600; color:#f4f4f5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row-dist{font-size:11px; color:var(--zinc-600); flex-shrink:0; font-variant-numeric:tabular-nums;}
+  .row-status{font-size:12px; margin-top:1px;}
+  .row-status.open{color:var(--emerald-400);}
+  .row-status.limited{color:var(--amber-400);}
+  .row-status.unknown{color:var(--zinc-500);}
+
+  .row-meta{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px;}
+
+  /* Exact ProvenanceBadge treatment, dark-mode classes, matched not reinvented */
+  .badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 8px;
+    font-size:10.5px; font-weight:500; border:1px solid; line-height:1.3;
+  }
+  .badge-verified{border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.1); color:var(--sky-300);}
+  .badge-community{border-color:rgba(167,139,250,.3); background:rgba(167,139,250,.1); color:var(--violet-300);}
+
+  /* LastVerifiedBadge: "Last verified" caption + FreshnessBadge */
+  .lv-wrap{display:inline-flex; align-items:center; gap:5px;}
+  .lv-caption{font-size:9.5px; font-weight:500; text-transform:uppercase; letter-spacing:.04em; color:var(--zinc-500);}
+  .fresh-badge{
+    display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 8px;
+    font-size:10.5px; font-weight:500; border:1px solid;
+  }
+  .fresh-badge.ok{border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.1); color:var(--emerald-300);}
+  .fresh-badge.stale{border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.1); color:var(--amber-300);}
+
+  .row-report{
+    margin-top:8px; font-size:11.5px; font-weight:600; color:var(--violet-400);
+    background:none; border:none; padding:0; cursor:pointer; min-height:24px;
+  }
+
+  .foot-note{
+    margin:4px 18px 20px; font-size:11px; line-height:1.5; color:var(--zinc-600);
+    border-top:1px solid var(--depth-border); padding-top:12px;
+  }
+</style>
+</head>
+<body>
+<div class="device-note">LDS status — list + map integration · mobile, 390px (consumer-facing, kept mobile-first per DESIGN_SYSTEM.md)</div>
+<div class="phone">
+  <div class="topbar">
+    <a class="back" href="#">← Map</a>
+    <h1>Fill Stations &amp; Gear</h1>
+    <p class="subhead">Air, O2, and emergency gear near La Jolla Cove</p>
+  </div>
+
+  <div class="map-preview">
+    <svg class="coast" viewBox="0 0 390 132" preserveAspectRatio="none">
+      <path class="coast-path" d="M0,40 C60,20 120,55 180,35 C240,15 300,45 390,25 L390,132 L0,132 Z" />
+    </svg>
+    <div class="map-dot open" style="left:96px; top:52px;"></div>
+    <div class="map-dot limited" style="left:214px; top:78px;"></div>
+    <div class="map-dot unknown" style="left:280px; top:40px;"></div>
+    <div class="map-caption">3 stations nearby</div>
+    <button class="map-open-btn" type="button">Open map ↗</button>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot open"></span>Open</span>
+    <span class="legend-item"><span class="legend-dot limited"></span>Limited</span>
+    <span class="legend-item"><span class="legend-dot closed"></span>Closed</span>
+    <span class="legend-item"><span class="legend-dot unknown"></span>Unknown</span>
+  </div>
+
+  <div class="list-head">
+    <h2>Nearby stations</h2>
+    <span class="list-count">3 of 3</span>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <div class="row-dot open"></div>
+      <div class="row-main">
+        <div class="row-top">
+          <div class="row-name">La Jolla Dive &amp; Kayak</div>
+          <div class="row-dist">0.3 mi</div>
+        </div>
+        <div class="row-status open">Open</div>
+        <div class="row-meta">
+          <span class="badge badge-verified"><span aria-hidden="true">✓</span>Verified</span>
+          <span class="lv-wrap">
+            <span class="lv-caption">Last verified</span>
+            <span class="fresh-badge ok"><span aria-hidden="true">✓</span>2 hr ago</span>
+          </span>
+        </div>
+        <button class="row-report" type="button">Report a status update</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="row-dot limited"></div>
+      <div class="row-main">
+        <div class="row-top">
+          <div class="row-name">OB Pier Dive Supply</div>
+          <div class="row-dist">4.1 mi</div>
+        </div>
+        <div class="row-status limited">Limited air</div>
+        <div class="row-meta">
+          <span class="badge badge-community"><span aria-hidden="true">◐</span>Community</span>
+          <span class="lv-wrap">
+            <span class="lv-caption">Last verified</span>
+            <span class="fresh-badge stale"><span aria-hidden="true">⚠</span>20 hr ago</span>
+          </span>
+        </div>
+        <button class="row-report" type="button">Report a status update</button>
+      </div>
+    </div>
+
+    <div class="row" style="border-bottom:none;">
+      <div class="row-dot unknown"></div>
+      <div class="row-main">
+        <div class="row-top">
+          <div class="row-name">Cove Lifeguard O2 Cache</div>
+          <div class="row-dist">0.6 mi</div>
+        </div>
+        <div class="row-status unknown">Status unknown</div>
+        <div class="row-meta">
+          <span class="badge badge-community"><span aria-hidden="true">◐</span>Community</span>
+          <span class="lv-wrap">
+            <span class="lv-caption">Last verified</span>
+            <span class="fresh-badge stale"><span aria-hidden="true">⚠</span>3 days ago</span>
+          </span>
+        </div>
+        <button class="row-report" type="button">Report a status update</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot-note">
+    Status is community- and shop-reported, never a live feed. A dot color is a quick read only — provenance and
+    last-verified time (above) are what tell you whether to trust it before you plan air refills around it.
+  </p>
+</div>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!-- @dsCard group="Safe-Return Timer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Safe-Return Timer — Running (degraded capability, iOS Safari)</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --dive-blue:#3B73F2; --dive-violet:#8365BE; --dive-pink:#DC577F;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --rose-300:#fda4af; --rose-400:#fb7185; --rose-500:#f43f5e;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { padding: 22px 20px 28px; display: flex; flex-direction: column; gap: 22px; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500; color: var(--text-tertiary);
+    text-decoration: none; width: fit-content;
+  }
+  .back-link svg { width: 14px; height: 14px; }
+  h1 {
+    font-family: var(--font-display); font-size: 24px; font-weight: 600;
+    letter-spacing: -0.01em; color: var(--text-primary); margin: 6px 0 0;
+  }
+  .subtitle { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 4px 0 0; }
+
+  .countdown-card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    border: 1px solid var(--border); border-radius: 20px;
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-raised) 100%);
+    padding: 36px 20px 30px;
+  }
+  .countdown-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--sky-400);
+  }
+  .countdown-value {
+    font-family: var(--font-display); font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+    font-size: 58px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary);
+    line-height: 1.05;
+  }
+  .countdown-sub { font-size: 12px; color: var(--text-tertiary); }
+
+  .reminder {
+    font-size: 12px; line-height: 1.55; color: var(--amber-300);
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  :root[data-theme="light"] .reminder { color: #92400e; }
+  .reminder svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--amber-400); }
+
+  .hold-btn {
+    position: relative; width: 100%; min-height: 60px; border-radius: 16px;
+    border: 1px solid rgba(16,185,129,0.5); background: rgba(6,95,70,0.35);
+    color: var(--emerald-300); font-family: inherit; font-size: 16px; font-weight: 600;
+    overflow: hidden; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .hold-btn span { position: relative; z-index: 1; }
+  .hold-hint { font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: -10px; }
+
+  .status-block { display: flex; flex-direction: column; gap: 8px; }
+  .status-heading { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-tertiary); }
+  .status-list { display: flex; flex-direction: column; gap: 7px; }
+  .status-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+  .status-item svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+  .status-item.bad { color: var(--rose-300); }
+  .status-item.warn { color: var(--amber-300); }
+  .status-item.neutral svg { color: var(--zinc-500); }
+
+  .degraded-note {
+    display: flex; gap: 8px; align-items: flex-start;
+    border: 1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.07);
+    border-radius: 12px; padding: 11px 13px; font-size: 12px; line-height: 1.55; color: var(--text-primary);
+  }
+  .degraded-note svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--amber-400); }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <a class="back-link" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Shore Dive
+      </a>
+      <div>
+        <h1>Safe-Return Timer</h1>
+        <p class="subtitle">An on-device countdown with a local alarm on expiry. v1 is intentionally local-only — read the disclaimer below before you start.</p>
+      </div>
+
+      <div class="countdown-card">
+        <p class="countdown-label">Safe-Return timer running</p>
+        <p class="countdown-value">1:04:52</p>
+        <p class="countdown-sub">time remaining</p>
+      </div>
+
+      <p class="reminder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Reminder: this alerts only this device — nobody else is notified — and it&rsquo;s less reliable in the background, especially on iPhone.
+      </p>
+
+      <div>
+        <button class="hold-btn" type="button">
+          <span>Hold to check in — I&rsquo;m safe</span>
+        </button>
+        <p class="hold-hint">press and hold — a quick tap does nothing</p>
+      </div>
+
+      <div class="status-block">
+        <p class="status-heading">What happens if this expires</p>
+        <div class="status-list">
+          <div class="status-item bad">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+            notifications: blocked — enable in browser settings to use this
+          </div>
+          <div class="status-item warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+            alarm sound: not yet unlocked — starting the timer will try again
+          </div>
+          <div class="status-item neutral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+            vibration: not available (expected on iPhone)
+          </div>
+        </div>
+      </div>
+
+      <p class="degraded-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Your alerting is limited on this device right now — the timer still runs, but it may not sound, buzz, or notify you on expiry. See the status above for what&rsquo;s actually blocked.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

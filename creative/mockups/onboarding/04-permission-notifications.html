@@ -1,0 +1,176 @@
+<!-- @dsCard group="Onboarding" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Onboarding — Notification permission priming</title>
+<style>
+  :root {
+    --depth-0: #0b1220;
+    --depth-1: #111a2e;
+    --depth-2: #182444;
+    --depth-3: #1f2e54;
+    --depth-border: #2a3a63;
+    --dive-blue: #3b73f2;
+    --dive-violet: #8365be;
+    --dive-pink: #dc577f;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --amber-400: #fbbf24;
+    --amber-500: #f59e0b;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --font-body: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #05070d;
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: center;
+    padding: 32px 12px;
+    min-height: 100vh;
+  }
+  .device {
+    width: 390px;
+    max-width: 100%;
+    height: 844px;
+    background: var(--depth-0);
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px var(--depth-border);
+    position: relative;
+    color: #e6ebf7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- Context screen: Safe-Return "start timer" screen, simplified --- */
+  .context { position: relative; flex: 1; display: flex; flex-direction: column; padding: 18px 20px 24px; }
+  .ctx-header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .ctx-header svg { width: 20px; height: 20px; stroke: var(--zinc-400); }
+  .ctx-header .title { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: #f2f5fb; }
+
+  .duration-label { font-size: 12.5px; color: var(--zinc-500); margin: 0 0 10px; }
+  .chips { display: flex; gap: 8px; margin-bottom: 26px; }
+  .chip { flex: 1; text-align: center; padding: 12px 0; border-radius: 12px; border: 1px solid var(--depth-border); background: var(--depth-1); font-size: 13px; color: #cdd6ea; }
+  .chip.sel { border-color: var(--sky-400); background: rgba(56,189,248,0.12); color: var(--sky-400); font-weight: 600; }
+
+  .disclaimer {
+    display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px;
+    background: var(--depth-1); border: 1px solid var(--depth-border); margin-bottom: 22px;
+  }
+  .disclaimer svg { width: 16px; height: 16px; stroke: var(--amber-400); flex-shrink: 0; margin-top: 1px; }
+  .disclaimer p { margin: 0; font-size: 12px; line-height: 1.55; color: #9aa5bd; }
+
+  .spacer { flex: 1; }
+  .start-btn {
+    width: 100%; min-height: 56px; border-radius: 16px; border: none;
+    background: var(--sky-500); color: #051019;
+    font-family: var(--font-body); font-size: 16px; font-weight: 700;
+  }
+
+  /* --- Scrim + bottom sheet --- */
+  .scrim { position: absolute; inset: 0; background: rgba(4,7,14,0.55); }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--depth-2); border: 1px solid var(--depth-border); border-bottom: none;
+    border-radius: 22px 22px 0 0; padding: 10px 22px 26px;
+    box-shadow: 0 -20px 50px rgba(0,0,0,0.4);
+  }
+  .grabber { width: 36px; height: 4px; border-radius: 4px; background: var(--depth-border); margin: 0 auto 18px; }
+  .sheet-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+  }
+  .sheet-icon svg { width: 24px; height: 24px; stroke: var(--sky-400); }
+  .sheet h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin: 0 0 8px; color: #f5f7fc; }
+  .sheet > p.lede { margin: 0 0 16px; font-size: 13.5px; line-height: 1.55; color: #a7b2c9; }
+
+  /* Honest-disclosure callout — this is the one permission sheet where
+     DESIGN_SYSTEM.md §7's "never imply a guarantee" rule is most load-
+     bearing, so it gets its own distinct, amber-bordered block rather
+     than blending into the regular bullet list. */
+  .honesty {
+    display: flex; gap: 10px; padding: 13px 14px; border-radius: 12px;
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+    margin-bottom: 18px;
+  }
+  .honesty svg { width: 16px; height: 16px; stroke: var(--amber-400); flex-shrink: 0; margin-top: 1px; }
+  .honesty p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #f3dfb0; }
+  .honesty b { color: #fbe3ae; }
+
+  .bullets { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .bullet { display: flex; gap: 10px; align-items: flex-start; }
+  .bullet svg { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; stroke: #10b981; }
+  .bullet.without svg { stroke: var(--zinc-500); }
+  .bullet p { margin: 0; font-size: 13px; line-height: 1.5; color: #cdd6ea; }
+  .bullet.without p { color: #8d97ad; }
+
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn-primary { min-height: 48px; border-radius: 13px; border: none; background: var(--sky-500); color: #051019; font-family: var(--font-body); font-size: 15px; font-weight: 600; }
+  .btn-ghost { min-height: 48px; border-radius: 13px; border: none; background: transparent; color: #9aa5bd; font-family: var(--font-body); font-size: 14px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="context">
+    <div class="ctx-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      <span class="title">Safe-Return timer</span>
+    </div>
+
+    <p class="duration-label">HOW LONG UNTIL YOU'RE BACK?</p>
+    <div class="chips">
+      <div class="chip">30 min</div>
+      <div class="chip sel">60 min</div>
+      <div class="chip">90 min</div>
+    </div>
+
+    <div class="disclaimer">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <p>This device only — no one else is notified. Most reliable while the app stays open, weaker on iPhone in the background.</p>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="start-btn" type="button">Start timer</button>
+  </div>
+
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-label="Notification permission">
+    <div class="grabber"></div>
+    <div class="sheet-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+    </div>
+    <h2>Get alerted if time runs out</h2>
+    <p class="lede">Notifications let the alarm reach you even if you've switched apps or locked your phone while waiting for the timer.</p>
+
+    <div class="honesty">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <p><b>Even with this on:</b> only this device is alerted — no contact, no rescue service. And on iPhone, background notifications are unreliable unless Shore Dive is installed to your home screen.</p>
+    </div>
+
+    <div class="bullets">
+      <div class="bullet">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <p>A push alert fires alongside the sound and vibration when time's up.</p>
+      </div>
+      <div class="bullet without">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <p>Without it: the timer still runs and still alarms — just sound and vibration, and only while the app is open on screen.</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" type="button">Allow notifications</button>
+      <button class="btn-ghost" type="button">Not now — start timer anyway</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

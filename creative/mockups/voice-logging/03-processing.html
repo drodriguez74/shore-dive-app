@@ -1,0 +1,140 @@
+<!-- @dsCard group="Voice Logging" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Logging — Processing (on-device STT)</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { padding: 22px 20px 28px; display: flex; flex-direction: column; gap: 24px; min-height: 844px; }
+
+  h1 { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); margin: 4px 0 0; }
+  .subtitle { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); margin: 4px 0 0; }
+
+  .proc-card {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    border: 1px solid var(--border); border-radius: 24px;
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-raised) 100%);
+    padding: 34px 24px 26px;
+  }
+  .spinner {
+    width: 42px; height: 42px; border-radius: 999px;
+    border: 3px solid var(--border); border-top-color: var(--sky-400);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; border-top-color: var(--sky-400); }
+  }
+  .proc-card h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 4px 0 0; color: var(--text-primary); }
+  .proc-card p.desc { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); text-align: center; max-width: 260px; }
+
+  .skeleton-block { width: 100%; }
+  .skeleton-block p.label { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); margin: 0 0 10px; }
+  .skel-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .skel-field:last-child { margin-bottom: 0; }
+  .skel-label { width: 70px; height: 9px; border-radius: 4px; background: var(--border); opacity: 0.7; }
+  .skel-value { width: 100%; height: 34px; border-radius: 10px; background: var(--bg-raised); border: 1px solid var(--border); position: relative; overflow: hidden; }
+  .skel-value::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .skel-value::after { animation: none; background: none; }
+  }
+
+  .exit-row { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: auto; }
+  .btn-cancel {
+    min-height: 44px; padding: 0 18px; border-radius: 13px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
+  }
+  .taking-long { margin: 0; font-size: 11.5px; color: var(--text-tertiary); text-align: center; max-width: 280px; }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <div>
+        <h1>Transcribing&hellip;</h1>
+        <p class="subtitle">Turning your recording into a draft log. This stays on your device.</p>
+      </div>
+
+      <div class="proc-card">
+        <div class="spinner" role="status" aria-label="Transcribing"></div>
+        <h2>0:52 recording</h2>
+        <p class="desc">Extracting depth, runtime, marine life, and conditions from what you said.</p>
+      </div>
+
+      <div class="skeleton-block">
+        <p class="label">Draft preview</p>
+        <div class="skel-field"><div class="skel-label"></div><div class="skel-value"></div></div>
+        <div class="skel-field"><div class="skel-label"></div><div class="skel-value"></div></div>
+        <div class="skel-field"><div class="skel-label"></div><div class="skel-value"></div></div>
+      </div>
+
+      <div class="exit-row">
+        <button class="btn-cancel" type="button">Cancel and enter manually</button>
+        <p class="taking-long">Taking longer than usual? You can switch to manual entry anytime &mdash; nothing you said is lost, just typed instead.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

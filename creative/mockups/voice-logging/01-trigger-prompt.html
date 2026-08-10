@@ -1,0 +1,238 @@
+<!-- @dsCard group="Voice Logging" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Logging — Trigger prompt (chips + voice offer)</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --dive-blue:#3B73F2; --dive-violet:#8365BE; --dive-pink:#DC577F;
+    --gradient-dive: linear-gradient(135deg, var(--dive-blue) 0%, var(--dive-violet) 50%, var(--dive-pink) 100%);
+
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-400:#34d399; --emerald-500:#10b981;
+    --amber-400:#fbbf24;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-700:#3f3f46; --zinc-800:#27272a; --zinc-900:#18181b;
+
+    --font-display: 'Space Grotesk', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --bg-raised: var(--depth-2);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --bg-raised: var(--zinc-100);
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .screen { display: flex; flex-direction: column; min-height: 844px; }
+
+  /* Backdrop: faded post-dive context, matching the checked-in Safe-Return
+     resolution screen, so the prompt reads as "appears right after a dive." */
+  .backdrop { flex: 1; display: flex; flex-direction: column; padding: 22px 20px; }
+  .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--text-tertiary); text-decoration: none; width: fit-content; }
+  .back-link svg { width: 14px; height: 14px; }
+  .resolved-card {
+    margin-top: 18px; border: 1px solid var(--border); border-radius: 20px;
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-raised) 100%);
+    padding: 22px 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  }
+  .resolved-icon {
+    width: 44px; height: 44px; border-radius: 999px; background: rgba(16,185,129,0.14);
+    border: 1px solid rgba(16,185,129,0.4); display: flex; align-items: center; justify-content: center;
+  }
+  .resolved-icon svg { width: 22px; height: 22px; stroke: var(--emerald-400); }
+  .resolved-card h1 { font-family: var(--font-display); font-size: 17px; font-weight: 600; margin: 4px 0 0; color: var(--text-primary); }
+  .resolved-card p { margin: 0; font-size: 12.5px; color: var(--text-tertiary); }
+
+  /* --- The prompt card: real chips card, unchanged, plus the new voice-offer section --- */
+  .prompt-wrap { margin-top: auto; padding-top: 24px; }
+  .card {
+    width: 100%; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--bg-card); box-shadow: 0 20px 45px -20px rgba(0,0,0,0.5); padding: 18px;
+  }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.03em; text-transform: uppercase; color: var(--sky-400); margin: 0 0 6px;
+  }
+  .eyebrow svg { width: 11px; height: 11px; }
+  .card-head h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; color: var(--text-primary); }
+  .card-head p.sub { margin: 3px 0 0; font-size: 12.5px; color: var(--text-tertiary); }
+  .dismiss-btn {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px; border: none; background: transparent;
+    color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .dismiss-btn svg { width: 16px; height: 16px; }
+
+  fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  legend { font-size: 11.5px; font-weight: 500; color: var(--text-tertiary); padding: 0; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border-radius: 999px; border: 1px solid var(--border); padding: 6px 12px; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); background: transparent; font-family: inherit; cursor: pointer;
+  }
+  .chip.selected { border-color: var(--sky-400); background: rgba(56,189,248,0.14); color: var(--sky-300); }
+  :root[data-theme="light"] .chip.selected { color: #0369a1; }
+  .chips-block { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+
+  .divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 14px; }
+  .divider .line { flex: 1; height: 1px; background: var(--border); }
+  .divider span { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-tertiary); white-space: nowrap; }
+
+  .voice-offer p.lede { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
+  .offer-actions { display: flex; gap: 8px; }
+  .btn-record {
+    flex: 1; min-height: 46px; border-radius: 13px; border: none;
+    background: var(--sky-500); color: #051019; font-family: inherit; font-size: 13.5px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  }
+  .btn-record svg { width: 15px; height: 15px; stroke: #051019; }
+  .btn-type {
+    flex: 1; min-height: 46px; border-radius: 13px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13.5px; font-weight: 500;
+    cursor: pointer;
+  }
+
+  .footer-note { margin: 14px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-tertiary); }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .btn-secondary {
+    flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
+  }
+  .btn-primary {
+    flex: 1; min-height: 44px; border-radius: 12px; border: none;
+    background: var(--sky-600); color: #fff; font-family: inherit; font-size: 13.5px; font-weight: 600;
+    opacity: 0.5; cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="screen">
+      <div class="backdrop">
+        <a class="back-link" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Shore Dive
+        </a>
+        <div class="resolved-card">
+          <div class="resolved-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <h1>Checked in safely</h1>
+          <p>Safe-Return timer resolved &middot; La Jolla Cove</p>
+        </div>
+
+        <div class="prompt-wrap">
+          <div class="card" role="dialog" aria-labelledby="card-heading">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  Safe-Return check-in &middot; just now
+                </p>
+                <h2 id="card-heading">Log dive conditions?</h2>
+                <p class="sub">Looks like you just wrapped up a dive. Quick tap, or skip it.</p>
+              </div>
+              <button class="dismiss-btn" type="button" aria-label="Dismiss without logging">
+                <svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+
+            <div class="chips-block">
+              <fieldset>
+                <legend>Visibility</legend>
+                <div class="chip-row" role="radiogroup" aria-label="Visibility">
+                  <button class="chip" type="button">Poor</button>
+                  <button class="chip selected" type="button">Fair</button>
+                  <button class="chip" type="button">Good</button>
+                  <button class="chip" type="button">Excellent</button>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Current</legend>
+                <div class="chip-row" role="radiogroup" aria-label="Current">
+                  <button class="chip selected" type="button">None</button>
+                  <button class="chip" type="button">Mild</button>
+                  <button class="chip" type="button">Moderate</button>
+                  <button class="chip" type="button">Strong</button>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Notable marine life?</legend>
+                <div class="chip-row" role="radiogroup" aria-label="Notable marine life sighting">
+                  <button class="chip selected" type="button">Yes</button>
+                  <button class="chip" type="button">No</button>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="divider"><span>Log the full dive</span><div class="line"></div></div>
+
+            <div class="voice-offer">
+              <p class="lede">Depth, runtime, and what you saw &mdash; talked through or typed in. You'll review everything before it saves.</p>
+              <div class="offer-actions">
+                <button class="btn-record" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  Record voice log
+                </button>
+                <button class="btn-type" type="button">Type it in</button>
+              </div>
+            </div>
+
+            <p class="footer-note">Saved on this device only for now &mdash; not yet synced to an account.</p>
+
+            <div class="card-actions">
+              <button class="btn-secondary" type="button">Not now</button>
+              <button class="btn-primary" type="button" disabled>Log conditions</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

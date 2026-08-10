@@ -1,0 +1,129 @@
+<!-- @dsCard group="Offline Prefetch" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline Prefetch — Site detail, not yet cached</title>
+<style>
+  :root {
+    --depth-0:#0B1220; --depth-1:#111A2E; --depth-2:#182444; --depth-3:#1F2E54; --depth-border:#2A3A63;
+    --sky-300:#7dd3fc; --sky-400:#38bdf8; --sky-500:#0ea5e9; --sky-600:#0284c7;
+    --emerald-300:#6ee7b7; --emerald-400:#34d399; --emerald-500:#10b981;
+    --amber-300:#fcd34d; --amber-400:#fbbf24; --amber-500:#f59e0b;
+    --violet-400:#a78bfa;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-300:#d4d4d8; --zinc-400:#a1a1aa;
+    --zinc-500:#71717a; --zinc-600:#52525b; --zinc-900:#18181b;
+    --font-body: 'Geist Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --bg-canvas: #05070d;
+    --bg-app: var(--depth-0);
+    --bg-card: var(--depth-1);
+    --border: var(--depth-border);
+    --text-primary: var(--zinc-50);
+    --text-secondary: var(--zinc-400);
+    --text-tertiary: var(--zinc-500);
+  }
+  :root[data-theme="light"] {
+    --bg-canvas: var(--zinc-200);
+    --bg-app: var(--zinc-50);
+    --bg-card: #ffffff;
+    --border: var(--zinc-200);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-tertiary: var(--zinc-500);
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg-canvas);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; font-family: var(--font-body);
+  }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; user-select: none;
+  }
+  .theme-toggle svg { width: 14px; height: 14px; }
+  .device {
+    width: 390px; max-width: 100%; background: var(--bg-app);
+    border-radius: 32px; border: 1px solid var(--border);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55); overflow: hidden;
+  }
+  .topbar { display:flex; align-items:center; gap:10px; padding:18px 20px 4px; }
+  .back-btn { width:30px; height:30px; border-radius:9px; background:var(--bg-card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); }
+  .back-btn svg { width:15px; height:15px; }
+  .topbar-title { font-size:12.5px; font-weight:600; color: var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; }
+
+  .hero { height:150px; margin:14px 20px 0; border-radius:16px; background: radial-gradient(120% 140% at 30% 0%, #1c2b4d 0%, #101a30 60%, #0b1220 100%); display:flex; align-items:center; justify-content:center; color: var(--zinc-600); }
+  .hero svg { width:44px; height:44px; }
+
+  .content { padding: 16px 20px 28px; display:flex; flex-direction:column; gap:16px; }
+  .site-name { font-size:20px; font-weight:700; color: var(--text-primary); letter-spacing:-.01em; }
+  .site-sub { font-size:12px; color: var(--text-tertiary); margin-top:2px; }
+
+  .badge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:500; border:1px solid; }
+  .badge-verified { border-color: rgba(56,189,248,.4); background: rgba(56,189,248,.1); color: var(--sky-300); }
+  .badge-neutral { border-color: var(--zinc-600); background: rgba(161,161,170,.08); color: var(--zinc-400); }
+  .badge-row { display:flex; flex-wrap:wrap; gap:6px; }
+
+  .prefetch-card {
+    display:flex; flex-direction:column; gap:12px;
+    border: 1px solid var(--border); background: var(--bg-card); border-radius: 16px; padding: 16px;
+  }
+  .prefetch-card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .prefetch-status-label { font-size:12.5px; font-weight:600; color: var(--text-primary); }
+  .prefetch-hint { font-size:12px; line-height:1.6; color: var(--text-secondary); margin:0; }
+
+  .btn-prefetch {
+    width:100%; min-height:52px; border-radius:12px; background: var(--sky-600); border:none;
+    color:white; font-family:inherit; font-size:14.5px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-prefetch svg { width:17px; height:17px; }
+
+  .desc { font-size:13px; line-height:1.6; color: var(--text-secondary); margin:0; }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light')" aria-label="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    theme
+  </button>
+
+  <div class="device">
+    <div class="topbar">
+      <div class="back-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg></div>
+      <div class="topbar-title">Site detail</div>
+    </div>
+    <div class="hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/><path d="M2 17c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/><path d="M2 7c1.5 1.5 3 1.5 4.5 0s3-1.5 4.5 0 3 1.5 4.5 0 3-1.5 4.5 0"/></svg>
+    </div>
+    <div class="content">
+      <div>
+        <div class="site-name">La Jolla Cove</div>
+        <div class="site-sub">32.8328, &minus;117.2713 &middot; Shore entry</div>
+      </div>
+      <div class="badge-row">
+        <span class="badge badge-verified">✓ Verified</span>
+      </div>
+
+      <div class="prefetch-card">
+        <div class="prefetch-card-top">
+          <span class="prefetch-status-label">Offline availability</span>
+          <span class="badge badge-neutral">Not cached yet</span>
+        </div>
+        <p class="prefetch-hint">Save this site&rsquo;s data and hazard map to your device now, so it&rsquo;s still here with zero signal at the water.</p>
+        <button class="btn-prefetch" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          Prefetch Now
+        </button>
+      </div>
+
+      <p class="desc">Protected cove with a sandy/rocky shore entry, calm most mornings before the wind picks up. Popular with new divers and snorkelers &mdash; expect company on weekends.</p>
+    </div>
+  </div>
+</body>
+</html>
