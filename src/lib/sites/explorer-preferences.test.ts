@@ -53,6 +53,7 @@ describe("useExplorerPreferences", () => {
     expect(result.current.radiusMiles).toBe(DEFAULT_EXPLORER_PREFERENCES.radiusMiles);
     expect(result.current.siteTypeFilter).toBe("all");
     expect(result.current.difficultyFilter).toBe("all");
+    expect(result.current.shoreAccessFilter).toBe("all");
   });
 
   it("round-trips a viewport, so returning to the map restores where the diver left it", () => {
@@ -85,6 +86,19 @@ describe("useExplorerPreferences", () => {
     seedStorage(window.localStorage.getItem(STORAGE_KEY));
     const { result: reloaded } = renderHook(() => useExplorerPreferences());
     expect(reloaded.current.difficultyFilter).toBe("advanced");
+  });
+
+  it("round-trips the shore-access filter", () => {
+    const { result } = renderHook(() => useExplorerPreferences());
+    act(() => {
+      result.current.setShoreAccessFilter("accessible");
+    });
+    expect(result.current.shoreAccessFilter).toBe("accessible");
+    expect(readStorage().shoreAccessFilter).toBe("accessible");
+
+    seedStorage(window.localStorage.getItem(STORAGE_KEY));
+    const { result: reloaded } = renderHook(() => useExplorerPreferences());
+    expect(reloaded.current.shoreAccessFilter).toBe("accessible");
   });
 
   it("round-trips the unbounded 'All' radius, which JSON.stringify turns into null", () => {
@@ -138,6 +152,20 @@ describe("useExplorerPreferences", () => {
     expect(result.current.difficultyFilter).toBe("all");
   });
 
+  it("rejects an unrecognized shore-access filter (e.g. mirroring the raw enum instead of the grouped one)", () => {
+    // The real failure mode this guards: `shore-access.ts`'s raw
+    // `ShoreAccessConfidence` has a `"likely"` value, but this filter
+    // deliberately groups likely/marginal into `"accessible"` — a persisted
+    // `"likely"` (e.g. from a future version that mirrored the raw enum, or
+    // hand-edited storage) must fall back to "all", not silently be treated
+    // as a valid filter value it was never defined to accept.
+    seedStorage(
+      JSON.stringify({ viewport: null, radiusMiles: 25, siteTypeFilter: "all", shoreAccessFilter: "likely" }),
+    );
+    const { result } = renderHook(() => useExplorerPreferences());
+    expect(result.current.shoreAccessFilter).toBe("all");
+  });
+
   it("keeps valid fields when only one field is corrupt", () => {
     seedStorage(
       JSON.stringify({
@@ -145,6 +173,7 @@ describe("useExplorerPreferences", () => {
         radiusMiles: 100,
         siteTypeFilter: "cave",
         difficultyFilter: "technical",
+        shoreAccessFilter: "accessible",
       }),
     );
     const { result } = renderHook(() => useExplorerPreferences());
@@ -152,6 +181,7 @@ describe("useExplorerPreferences", () => {
     expect(result.current.radiusMiles).toBe(100);
     expect(result.current.siteTypeFilter).toBe("cave");
     expect(result.current.difficultyFilter).toBe("technical");
+    expect(result.current.shoreAccessFilter).toBe("accessible");
   });
 
   it("picks up a change made in another tab", () => {
@@ -163,12 +193,14 @@ describe("useExplorerPreferences", () => {
       radiusMiles: 250,
       siteTypeFilter: "spring",
       difficultyFilter: "beginner",
+      shoreAccessFilter: "boat",
     };
     seedStorage(JSON.stringify(next));
 
     expect(result.current.radiusMiles).toBe(250);
     expect(result.current.siteTypeFilter).toBe("spring");
     expect(result.current.difficultyFilter).toBe("beginner");
+    expect(result.current.shoreAccessFilter).toBe("boat");
   });
 
   it("updating one field leaves the others intact", () => {
