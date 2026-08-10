@@ -213,3 +213,60 @@ describe("classifyShoreAccess — Perry Street Rockpile, Dania Beach", () => {
     expect(result.isShoreAccessible).toBe(false);
   });
 });
+
+describe("classifyShoreAccess — Phil Foster Park entry correction", () => {
+  it("classifies the site literally named for this park, previously wrongly boat-only", () => {
+    // Founder request (2026-08-10): re-verify every catalogued entry's own
+    // coordinates, not just site distances, after mizell-johnson-dania
+    // turned out to be mis-located. phil-foster-blue-heron was ~1.4 mi off
+    // — real coordinates from OSM's own "Phil Foster Park" way and its
+    // "Phil Foster Park Snorkel Reef" divespot node. Real catalogued
+    // coordinates from `sites` for "Phil Foster Park Snorkel Trail", a site
+    // that was `unlikely` at 2509.8 yd purely because the entry meant to
+    // cover it was mis-placed.
+    const snorkelTrail = { latitude: 26.7825, longitude: -80.04217 };
+    const result = classifyShoreAccess(snorkelTrail);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("phil-foster-blue-heron");
+  });
+});
+
+describe("classifyShoreAccess — known exceptions override geometric range", () => {
+  // Founder concern (2026-08-10): "I'm now really doubting the integrity of
+  // the dive site information." Cross-checking the 19 currently-flagged
+  // sites against independent web sources found two where a credible named
+  // source explicitly contradicts the distance-only model — both real
+  // catalogued coordinates from `sites`.
+
+  it("classifies Goggle-Eye Reef as boat-only despite being within range of an entry", () => {
+    // DiveBuddy.com: "you'll need to arrange a boat charter" to dive it
+    // specifically, distinct from a different nearby shore dive it also
+    // describes.
+    const goggleEyeReef = { latitude: 26.5505, longitude: -80.03832 };
+    const result = classifyShoreAccess(goggleEyeReef);
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+    // Still reports the nearest entry/distance for transparency — the
+    // exception overrides the verdict, not the underlying geometry.
+    expect(result.nearestEntry?.id).toBe("ocean-inlet-park-boynton");
+    expect(result.distanceMiles).not.toBeNull();
+  });
+
+  it("classifies Peanut Island -NE as boat/kayak-only despite being within range of an entry", () => {
+    // Multiple sources: accessible "only by water taxi, shuttle boat,
+    // kayak, or paddleboard" — separated from Phil Foster Park by the Lake
+    // Worth Inlet's navigable channel, not a normal beach swim.
+    const peanutIslandNE = { latitude: 26.77695, longitude: -80.04305 };
+    const result = classifyShoreAccess(peanutIslandNE);
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+  });
+
+  it("does not suppress a genuinely shore-accessible site near an exception", () => {
+    // Guards the match radius: a real site a short distance away from a
+    // known exception's coordinates must not be swept into the exception.
+    const nearbyRealSite = { latitude: 26.7825, longitude: -80.04217 }; // Phil Foster Park Snorkel Trail
+    const result = classifyShoreAccess(nearbyRealSite);
+    expect(result.isShoreAccessible).toBe(true);
+  });
+});
