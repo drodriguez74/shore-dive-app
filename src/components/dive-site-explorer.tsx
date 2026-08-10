@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SiteMap } from "@/components/site-map";
 import { NearbyDiveSitesList, type SiteWithDistance } from "@/components/nearby-dive-sites-list";
-import { MOCK_LDS_MARKERS } from "@/components/lds/lds-status";
+import type { LdsStatusRow } from "@/components/lds/lds-status";
 import { useGeolocation, type GeolocationCoords } from "@/hooks/use-geolocation";
 import { distanceMiles } from "@/lib/sites/distance";
 import { errorMessage } from "@/lib/error-message";
@@ -231,6 +231,12 @@ export interface DiveSiteExplorerProps {
    * is "All", and if the search-nearby fetch fails. Same fallback contract
    * `NearbyDiveSitesList` had pre-T21.6, just now owned up here instead. */
   sites: SiteMarker[];
+  /** Real `lds_status` read from `src/app/page.tsx` (Task 16, T22.6 — this
+   * used to be `MOCK_LDS_MARKERS`, rendered on the live homepage
+   * unconditionally, not as a fallback). Defaults to `[]`, the honest
+   * "nothing verified yet" state, rather than to fabricated shop pins if a
+   * future caller forgets to pass it. */
+  ldsMarkers?: LdsStatusRow[];
   /** Resolved server-side by `src/app/page.tsx`. Used only to explain the
    * `T21.13` auth gate in the empty state — being signed in is what unlocks
    * the OpenStreetMap search, and without saying so an anonymous diver in a
@@ -276,7 +282,7 @@ export interface DiveSiteExplorerProps {
  * duplication that already existed pre-T21.6 between `SiteMap` and
  * `NearbyDiveSitesList`, just relocated, not introduced by this change).
  */
-export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorerProps) {
+export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }: DiveSiteExplorerProps) {
   const { status, coords } = useGeolocation();
   // Radius + site-type filter persist across navigation (reported 2026-08-09:
   // browsing to a site detail page and back silently reset both). Same
@@ -450,7 +456,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
   return (
     <>
       <div className="flex-1">
-        <SiteMap ldsMarkers={MOCK_LDS_MARKERS} siteMarkers={mapSiteMarkers} emptyStateMessage={mapEmptyStateMessage} />
+        <SiteMap ldsMarkers={ldsMarkers} siteMarkers={mapSiteMarkers} emptyStateMessage={mapEmptyStateMessage} />
       </div>
 
       <NearbyDiveSitesList

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DiveSiteExplorer } from "@/components/dive-site-explorer";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
-import { listSitesWithHazardFlag } from "@/lib/sites/queries";
+import { listSitesWithHazardFlag, listLdsStatusMarkers } from "@/lib/sites/queries";
 import { logger } from "@/lib/sites/logger";
 
 // Task 11.5: this page now does a real Supabase read (via listSitesWithHazardFlag,
@@ -38,8 +38,9 @@ async function isSignedIn(): Promise<boolean> {
 }
 
 export default async function Home() {
-  const [{ sites, error: sitesError }, signedIn] = await Promise.all([
+  const [{ sites, error: sitesError }, { markers: ldsMarkers, error: ldsError }, signedIn] = await Promise.all([
     listSitesWithHazardFlag(),
+    listLdsStatusMarkers(),
     isSignedIn(),
   ]);
 
@@ -78,11 +79,17 @@ export default async function Home() {
             flow (creative/flows/map-exploration.md's scrollable-card list) —
             that's a separate, still-open gap (out of scope for this batch,
             noted for the founder). */}
-        <DiveSiteExplorer sites={sites} isSignedIn={signedIn} />
+        <DiveSiteExplorer sites={sites} ldsMarkers={ldsMarkers} isSignedIn={signedIn} />
         {sitesError && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
             Couldn&apos;t load dive sites from Supabase ({sitesError}). Map/list will be empty until this is
             resolved.
+          </p>
+        )}
+        {ldsError && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Couldn&apos;t load LDS/fill-station status from Supabase ({ldsError}). Those pins will be empty until
+            this is resolved.
           </p>
         )}
       </main>

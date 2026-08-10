@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SITE_QUERY_LIMIT,
   HAZARD_FLAG_QUERY_LIMIT,
+  LDS_STATUS_QUERY_LIMIT,
   MAX_SITE_QUERY_LIMIT,
   SITE_DETAIL_HAZARD_LIMIT,
   getSiteWithHazards,
+  listLdsStatusMarkers,
   listSitesInBounds,
   listSitesWithHazardFlag,
 } from "./queries";
@@ -932,5 +934,130 @@ describe("getSiteWithHazards", () => {
         error: "Missing NEXT_PUBLIC_SUPABASE_URL",
       });
     });
+  });
+});
+
+// ---------------------------------------------------------------------
+// listLdsStatusMarkers — T22.6. Replaces `MOCK_LDS_MARKERS`, which used to
+// be the only data path feeding the homepage map's LDS pins. The property
+// that matters most here is the one `MOCK_LDS_MARKERS` could never prove:
+// a genuinely empty `lds_status` table must return an honest empty list,
+// never fall back to fabricated markers.
+// ---------------------------------------------------------------------
+
+function ldsRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "lds-1",
+    site_id: null,
+    name: "Test Dive Shop",
+    latitude: 26.7,
+    longitude: -80.1,
+    status: "open",
+    provenance: "COMMUNITY",
+    last_verified_at: "2026-08-01T00:00:00.000Z",
+    created_by: null,
+    created_at: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function ldsRows(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    ldsRow({ id: `lds-${i}`, name: `Shop ${i}`, last_verified_at: `2026-08-${String(i + 1).padStart(2, "0")}T00:00:00.000Z` }),
+  );
+}
+
+describe("listLdsStatusMarkers", () => {
+  it("names every lds_status column it needs instead of selecting *", async () => {
+    const recorder = useClient({ lds_status: { data: [], error: null } });
+
+    await listLdsStatusMarkers();
+
+    const selected = recorder.callsFor("lds_status", "select")[0].args[0] as string;
+    expect(selected).not.toBe("*");
+    expect(selected.split(",").map((c) => c.trim()).sort()).toEqual([
+      "created_at",
+      "created_by",
+      "id",
+      "last_verified_at",
+      "latitude",
+      "longitude",
+      "name",
+      "provenance",
+      "site_id",
+      "status",
+    ]);
+  });
+
+  it("returns an empty list — never fabricated markers — when the table is genuinely empty", async () => {
+    useClient({ lds_status: { data: [], error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: null });
+  });
+
+  it("collapses an append-only log to one row per shop via latestStatusPerShop", async () => {
+    useClient({
+      lds_status: {
+        data: [
+          ldsRow({ id: "r1", name: "Shop A", status: "closed", last_verified_at: "2026-08-01T00:00:00.000Z" }),
+          ldsRow({ id: "r2", name: "Shop A", status: "open", last_verified_at: "2026-08-05T00:00:00.000Z" }),
+        ],
+        error: null,
+      },
+    });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.markers).toHaveLength(1);
+    expect(result.markers[0]).toMatchObject({ id: "r2", status: "open" });
+  });
+
+  it("coerces PostgREST numeric-as-string coordinates to real numbers", async () => {
+    useClient({
+      lds_status: { data: [ldsRow({ latitude: "26.7753", longitude: "-80.0431" })], error: null },
+    });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.markers[0].latitude).toBe(26.7753);
+    expect(result.markers[0].longitude).toBe(-80.0431);
+  });
+
+  it("bounds the read with an explicit limit and flags truncation", async () => {
+    const recorder = useClient({ lds_status: { data: ldsRows(LDS_STATUS_QUERY_LIMIT), error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(recorder.callsFor("lds_status", "limit").map((c) => c.args)).toEqual([[LDS_STATUS_QUERY_LIMIT]]);
+    expect(result.truncated).toBe(true);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not flag truncation for a result under the limit", async () => {
+    useClient({ lds_status: { data: ldsRows(3), error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.truncated).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("returns { markers: [], error }, never throws, on a query error", async () => {
+    useClient({ lds_status: { data: null, error: postgrestError("permission denied") } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: "permission denied" });
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns { markers: [], error }, never throws, when createClient itself throws", async () => {
+    mockCreateClient.mockRejectedValue(new Error("Missing NEXT_PUBLIC_SUPABASE_URL"));
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" });
   });
 });

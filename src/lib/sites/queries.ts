@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "./logger";
+import { latestStatusPerShop, type LdsProvenance, type LdsStatusRow, type LdsStatusValue } from "@/components/lds/lds-status";
 import type {
   HazardReport,
   ResearchSource,
@@ -614,5 +615,90 @@ export async function getSiteWithHazards(id: string): Promise<SiteDetailResult> 
     // all, so it isn't a partial list — same convention as ListSitesResult's
     // error path.
     return { site: null, hazards: [], truncated: false, error: errorMessage(error) };
+  }
+}
+
+// ---------------------------------------------------------------------
+// lds_status — real reads, replacing `@/components/lds/lds-status`'s
+// `MOCK_LDS_MARKERS` (found 2026-08-10: the homepage map was rendering that
+// mock data live, unconditionally — not a fallback, the only data path that
+// existed. `lds_status` is a real table with real RLS as of 0001_init.sql;
+// nothing before this ever queried it).
+// ---------------------------------------------------------------------
+
+interface RawLdsStatusRow {
+  id: string;
+  site_id: string | null;
+  name: string;
+  latitude: number | string;
+  longitude: number | string;
+  status: LdsStatusValue;
+  provenance: LdsProvenance;
+  last_verified_at: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Every column `LdsStatusRow` needs — named explicitly rather than `select("*")`,
+ * same reasoning as `SITE_DETAIL_COLUMNS`: a schema/code mismatch should fail
+ * loudly here, not silently return whatever columns happen to exist. */
+const LDS_STATUS_COLUMNS =
+  "id, site_id, name, latitude, longitude, status, provenance, last_verified_at, created_by, created_at";
+
+/** Same ceiling convention as `MAX_SITE_QUERY_LIMIT` — this table is small
+ * today, but an explicit, honest limit costs nothing and means a future
+ * silent-truncation failure mode is already handled rather than invited. */
+export const LDS_STATUS_QUERY_LIMIT = 1000;
+
+export interface LdsStatusMarkersResult {
+  /** Already collapsed to one row per shop via `latestStatusPerShop` — see
+   * `lds-status.ts`'s header on why `lds_status` is an append-only log
+   * rather than update-in-place. Callers render this directly; they never
+   * need the raw log. */
+  markers: LdsStatusRow[];
+  truncated: boolean;
+  error: string | null;
+}
+
+/**
+ * Real `lds_status` read (Task 16, replacing `MOCK_LDS_MARKERS`). Public
+ * read per `lds_status`'s RLS (`0002_rls.sql`), so this never requires a
+ * signed-in session — same posture as `listSitesWithHazardFlag`.
+ *
+ * An empty result is the honest, expected state until real shop
+ * verifications exist — this function does NOT fall back to mock data on
+ * an empty table, only on a genuine read failure does it degrade (to an
+ * empty list, never to fabricated markers), per CLAUDE.md's standing rule
+ * against a UI implying data it doesn't have.
+ */
+export async function listLdsStatusMarkers(): Promise<LdsStatusMarkersResult> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("lds_status")
+      .select(LDS_STATUS_COLUMNS)
+      .order("last_verified_at", { ascending: false })
+      .limit(LDS_STATUS_QUERY_LIMIT)
+      .returns<RawLdsStatusRow[]>();
+
+    if (error) throw error;
+
+    const rows = data ?? [];
+    const truncated = rows.length >= LDS_STATUS_QUERY_LIMIT;
+    if (truncated) {
+      logger.warn("lds_status.list_truncated", { count: rows.length, limit: LDS_STATUS_QUERY_LIMIT });
+    }
+
+    const normalized: LdsStatusRow[] = rows.map((row) => ({
+      ...row,
+      latitude: toNumber(row.latitude),
+      longitude: toNumber(row.longitude),
+    }));
+
+    return { markers: latestStatusPerShop(normalized), truncated, error: null };
+  } catch (error) {
+    logger.error("lds_status.list_failed", { error: errorMessage(error) });
+    return { markers: [], truncated: false, error: errorMessage(error) };
   }
 }
