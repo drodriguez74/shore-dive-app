@@ -30,6 +30,40 @@
  * `AccessType` describes entry, and `OverheadEnvironment` is carried
  * separately and rendered separately, so no caller can surface one while
  * omitting the other.
+ *
+ * ## A third axis this module does NOT model: permission to dive at all
+ *
+ * "Walk-in, no boat needed" (this module) and "requires cave training"
+ * (`overhead`) both assume the site is open to the public for diving in the
+ * first place. Task 22's research pass (2026-08-10) found three catalogued
+ * springs where that assumption is false — physically walk-in, but not
+ * legally/practically diveable by a general-audience visitor:
+ *
+ * - **Weeki Wachee Spring** — a commercial concession that briefly operated
+ *   here (1999-2001) is long discontinued; diving today is limited to
+ *   permitted research access through the Florida Park Service.
+ * - **Juniper Springs** — scuba diving is not permitted at all (swim/snorkel
+ *   only); Alexander Springs, nearby, is the only Ocala National Forest
+ *   spring where it is.
+ * - **Rainbow Spring North** — the state park's north headspring entrance is
+ *   swim-only (roped/buoyed zone); the actual diveable stretch of the same
+ *   river is two miles downstream via KP Hole County Park, a different gate
+ *   entirely (catalogued separately as "Rainbow Spring").
+ *
+ * `sites.shore_access` for all three was corrected from `likely` to
+ * `unlikely` for exactly this reason — not because entry is hard, but
+ * because there is, in the ordinary sense, nothing to dive. `unlikely` is a
+ * stretch of that column's literal meaning (it is walk-in, in the sense this
+ * module measures), but it is the honest choice available in the current
+ * three-value enum, and the one that actually matters: it keeps these three
+ * out of the app's "shore accessible" badge/filter, which is the real-world
+ * consequence a diver reading that badge would otherwise act on. See each
+ * site's `research_summary` (Task 22) for the full citation-backed
+ * explanation. No code in this repo currently sets spring `shore_access` in
+ * bulk — these were one-off corrections against the live database, so there
+ * is no seed/import script to keep in sync, but a *future* one populating
+ * new spring rows should not default every `site_type = 'spring'` row to
+ * `likely` without checking against this list first.
  */
 
 import type { SiteType } from "./types";
