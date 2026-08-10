@@ -72,6 +72,7 @@ import {
 } from "@/lib/sites/dive-suitability";
 import {
   classifyShoreAccess,
+  shoreAccessFromStoredFields,
   FLORIDA_DIVER_DOWN_FLAG_NOTICE,
   SHORE_DIVE_MAX_MILES,
   type ShoreAccessResult,
@@ -79,7 +80,7 @@ import {
 import { classifyWaterAccess, usesCoastalDistanceModel, type WaterAccess } from "@/lib/sites/water-access";
 import { classifyDiveDifficulty, DIFFICULTY_LABEL, type DifficultyLevel } from "@/lib/sites/dive-difficulty";
 import { resolveSiteDepthFt, type DepthCarryingSite } from "@/lib/sites/site-depth";
-import type { ShoreAccessConfidence, SiteType } from "@/lib/sites/types";
+import type { ShoreAccessConfidence, ShoreAccessMethod, SiteType } from "@/lib/sites/types";
 
 export interface SiteDiveProfileProps {
   site: DepthCarryingSite & {
@@ -88,6 +89,9 @@ export interface SiteDiveProfileProps {
     longitude: number;
     site_type?: SiteType | null;
     shore_access?: ShoreAccessConfidence | null;
+    shore_access_method?: ShoreAccessMethod | null;
+    shore_entry_id?: string | null;
+    shore_distance_yards?: number | null;
   };
 }
 
@@ -100,7 +104,12 @@ export function SiteDiveProfile({ site }: SiteDiveProfileProps) {
   // freshwater site; `usesCoastalDistanceModel` is the same gate
   // `shore-access.ts`'s own docs point callers at.
   const isWalkInSite = !usesCoastalDistanceModel(site.site_type);
-  const shore = isWalkInSite ? null : classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude });
+  // Prefer what's actually stored (`shoreAccessFromStoredFields`) over a
+  // live recompute — see that function's own header for why a live
+  // recompute can silently regress an osm_tag-classified site back to
+  // `unlikely` (it has no access to the OSM tag that produced the stored
+  // result). Only recompute live when nothing has been classified yet.
+  const shore = isWalkInSite ? null : (shoreAccessFromStoredFields(site) ?? classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude }));
   const difficulty = classifyDiveDifficulty(
     { latitude: site.latitude, longitude: site.longitude },
     { minFt: depth.minFt, maxFt: depth.maxFt },

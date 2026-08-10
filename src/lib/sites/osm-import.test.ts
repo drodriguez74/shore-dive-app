@@ -507,3 +507,122 @@ describe("upsertSitesFromOsm", () => {
     expect(result.error).toBe("permission denied");
   });
 });
+
+// ---------------------------------------------------------------------
+// Shore-access classification at import time (2026-08-10). Before this,
+// toInsertableRow() never set shore_access at all — not for any site,
+// including Florida. OSM's own scuba_diving:entry tag (already parsed into
+// `entryType` above) is now threaded through classifyShoreAccess() as a
+// global fallback once the curated-entry model has had its say. See
+// src/lib/sites/shore-access.ts's own module header/tests for the
+// classification rules themselves — these tests only prove the import
+// pipeline actually calls into them correctly, gated the same way
+// site-dive-profile.tsx's render-time fix (commit 4bb0990) already is.
+// ---------------------------------------------------------------------
+
+/** Captures whatever `upsertSitesFromOsm` passes to `.insert()` — same
+ * mock shape as the "inserts new shore sites..." test above, factored out
+ * since every test below needs it. */
+function captureInsertedRows() {
+  let insertedRows: unknown;
+  const from = vi.fn(() => {
+    const builder: Record<string, unknown> = {
+      select: (columns: string) => {
+        if (columns === "external_id") {
+          return { eq: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) };
+        }
+        return Promise.resolve({ data: insertedRows, error: null });
+      },
+      insert: (rows: unknown) => {
+        insertedRows = rows;
+        return builder;
+      },
+    };
+    return builder;
+  });
+  mockCreateAdminClient.mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+  return () => insertedRows as Array<Record<string, unknown>>;
+}
+
+describe("upsertSitesFromOsm — shore-access classification at import time", () => {
+  beforeEach(() => {
+    mockCreateAdminClient.mockReset();
+  });
+
+  it("classifies a real Florida coordinate via the curated-entry model, same as calling classifyShoreAccess directly", async () => {
+    const getRows = captureInsertedRows();
+    // A point seaward of the real Datura Avenue entry (26.1867, -80.09498),
+    // well inside the "likely" baseline — see shore-access.test.ts's own
+    // seawardOfDatura() fixture for the same baseline used there.
+    const datura = { latitude: 26.1867, longitude: -80.09417 };
+
+    await upsertSitesFromOsm([
+      site({ osmId: "fl-1", latitude: datura.latitude, longitude: datura.longitude, entryType: "unknown", siteType: "shore_reef" }),
+    ]);
+
+    expect(getRows()[0]).toMatchObject({
+      shore_access: "likely",
+      shore_access_method: "curated_entry",
+      shore_entry_id: "datura-ave-lbts",
+    });
+    expect(getRows()[0].shore_distance_yards).toBeGreaterThan(0);
+  });
+
+  it("classifies a non-Florida site via the OSM-tag fallback when it's tagged shore", async () => {
+    const getRows = captureInsertedRows();
+    // Real open-water coordinates far outside Florida (off Santa Marta,
+    // Colombia) — same fixture coordinate as shore-access.test.ts's
+    // SANTA_MARTA_AREA, chosen so this test and that module's own tests
+    // can't silently drift onto different "outside Florida" definitions.
+    await upsertSitesFromOsm([
+      site({ osmId: "co-1", latitude: 11.24, longitude: -74.2, entryType: "shore", siteType: "shore_reef" }),
+    ]);
+
+    expect(getRows()[0]).toMatchObject({
+      shore_access: "marginal", // capped — an unverified tag never earns "likely"
+      shore_access_method: "osm_tag",
+      shore_entry_id: null, // no curated entry point to name for this method
+      shore_distance_yards: null,
+    });
+  });
+
+  it("leaves shore_access null for a non-Florida site with no entry tag — honest, not a guess", async () => {
+    const getRows = captureInsertedRows();
+    await upsertSitesFromOsm([
+      site({ osmId: "co-2", latitude: 11.24, longitude: -74.2, entryType: "unknown", siteType: "shore_reef" }),
+    ]);
+
+    // "unknown" tag + nothing in curated range → the honest unlikely result,
+    // not a null — the classifier still ran, it just found nothing.
+    expect(getRows()[0]).toMatchObject({ shore_access: "unlikely", shore_access_method: "curated_entry" });
+  });
+
+  it("never runs the coastal model on a spring/cave, regardless of tag or location", async () => {
+    const getRows = captureInsertedRows();
+    // Even a Florida-coordinate spring with an explicit "shore" tag must
+    // not get a coastal-distance classification — usesCoastalDistanceModel
+    // exempts spring/cave entirely, same gate site-dive-profile.tsx's
+    // WalkInAccessBody relies on for rendering.
+    await upsertSitesFromOsm([
+      site({ osmId: "spring-1", latitude: 26.1867, longitude: -80.09498, entryType: "shore", siteType: "spring" }),
+    ]);
+
+    expect(getRows()[0]).toMatchObject({
+      shore_access: null,
+      shore_access_method: null,
+      shore_entry_id: null,
+      shore_distance_yards: null,
+    });
+  });
+
+  it("lets a cited boat-only exception win even when OSM tags the same site shore", async () => {
+    const getRows = captureInsertedRows();
+    // Goggle-Eye Reef's real coordinates — a known SHORE_ACCESS_EXCEPTIONS
+    // entry (DiveBuddy.com: "you'll need to arrange a boat charter").
+    await upsertSitesFromOsm([
+      site({ osmId: "exc-1", latitude: 26.5505, longitude: -80.03832, entryType: "shore", siteType: "artificial_reef" }),
+    ]);
+
+    expect(getRows()[0]).toMatchObject({ shore_access: "unlikely", shore_access_method: "curated_entry" });
+  });
+});

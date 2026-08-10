@@ -491,6 +491,7 @@ describe("map-pin column list", () => {
     "name",
     "provenance",
     "shore_access",
+    "shore_access_method",
     "site_type",
   ];
 
@@ -644,6 +645,7 @@ describe("getSiteWithHazards", () => {
           "research_summary",
           "research_summary_updated_at",
           "shore_access",
+          "shore_access_method",
           "shore_distance_yards",
           "shore_entry_id",
           "site_type",
@@ -800,6 +802,7 @@ describe("getSiteWithHazards", () => {
         sites: {
           data: siteDetailRow({
             shore_access: "marginal",
+            shore_access_method: "curated_entry",
             shore_entry_id: "south-beach-5th-st",
             shore_distance_yards: "295.0",
             depth_min_ft: "20",
@@ -815,6 +818,7 @@ describe("getSiteWithHazards", () => {
       // reason the entry id and distance are persisted rather than recomputed.
       expect(result.site).toMatchObject({
         shore_access: "marginal",
+        shore_access_method: "curated_entry",
         shore_entry_id: "south-beach-5th-st",
         shore_distance_yards: 295,
         depth_min_ft: 20,
@@ -831,6 +835,32 @@ describe("getSiteWithHazards", () => {
         depth_min_ft: null,
         depth_max_ft: null,
         shore_access: null,
+        shore_access_method: null,
+        shore_entry_id: null,
+        shore_distance_yards: null,
+      });
+    });
+
+    it("normalizes an OSM-tag-derived classification distinctly from a curated one", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            shore_access: "marginal",
+            shore_access_method: "osm_tag",
+            shore_entry_id: null,
+            shore_distance_yards: null,
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      // osm_tag rows genuinely have no curated entry point — null stays
+      // null, it isn't a missing-data bug for this method.
+      expect(result.site).toMatchObject({
+        shore_access: "marginal",
+        shore_access_method: "osm_tag",
         shore_entry_id: null,
         shore_distance_yards: null,
       });

@@ -6,7 +6,7 @@
  */
 
 import type { Provenance } from "@/components/provenance-badge";
-import type { ShoreAccessConfidence } from "./shore-access";
+import type { ShoreAccessConfidence, ShoreAccessMethod } from "./shore-access";
 
 /** `sites`/`hazard_reports` only ever carry the two-state provenance model
  * (P0-B) — narrowed here for the same reason `src/components/lds/lds-status.ts`
@@ -57,6 +57,17 @@ export type SiteType =
  */
 export type { ShoreAccessConfidence };
 
+/**
+ * The `shore_access_method` Postgres enum (`0014_shore_access_method.sql`),
+ * re-exported the same way as `ShoreAccessConfidence` above — the stored
+ * column and the classifier that produces it must never drift apart. `null`
+ * whenever `shore_access` is `null` (not yet classified). See
+ * `ShoreAccessMethod`'s own doc comment for what `"curated_entry"` vs.
+ * `"osm_tag"` may claim — an `osm_tag` row is real but unverified, and must
+ * never be rendered with the same weight as a researched, cited entry.
+ */
+export type { ShoreAccessMethod };
+
 /** One citation backing a `Site.research_summary` (`0013_sites_research_summary.sql`,
  * Task 22) — `title` is the source's own name (a dive shop, a park
  * authority, a citizen-science chapter), not a generic "source 1" label, so
@@ -101,6 +112,9 @@ export interface Site {
    * classified" — see the `ShoreAccessConfidence` re-export above for why
    * that is a distinct state from `"unlikely"`. */
   shore_access?: ShoreAccessConfidence | null;
+  /** Which signal produced `shore_access` — see the `ShoreAccessMethod`
+   * re-export above. `null`/absent alongside a `null` `shore_access`. */
+  shore_access_method?: ShoreAccessMethod | null;
   /** `ShoreEntryPoint.id` the classification was measured from (e.g.
    * `"south-beach-5th-st"`). Detail-page only — it exists so the UI can say
    * "295 yd from the 5th Street beach entry" instead of showing an
@@ -198,5 +212,10 @@ export interface SiteMarker {
    * rendering of this must be a filter or an unelaborated tag, with the
    * "295 yd from ..." explanation coming from the detail read. */
   shore_access?: ShoreAccessConfidence | null;
+  /** Which signal produced `shore_access` — present on the marker (unlike
+   * `shore_entry_id`/`shore_distance_yards`, detail-only) since a future
+   * "curated entries only" map filter would need it per-pin, same
+   * reasoning `shore_access` itself earned a place here in 0012. */
+  shore_access_method?: ShoreAccessMethod | null;
   hasHazardReport: boolean;
 }

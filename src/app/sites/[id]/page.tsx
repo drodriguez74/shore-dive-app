@@ -138,7 +138,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   // `SiteLocationMap` renders this site with the identical icon it carries on
   // the homepage map (same `pin-icons.ts` spec), rather than a second,
   // drifting representation of the same site.
-  const marker: SiteMarker = {
+  const marker: SiteMarker & Pick<typeof site, "shore_entry_id" | "shore_distance_yards"> = {
     id: site.id,
     name: site.name,
     latitude: site.latitude,
@@ -146,6 +146,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     provenance: site.provenance,
     legal_access_status: site.legal_access_status,
     site_type: site.site_type,
+    shore_access: site.shore_access,
+    shore_access_method: site.shore_access_method,
+    shore_entry_id: site.shore_entry_id,
+    shore_distance_yards: site.shore_distance_yards,
     hasHazardReport: hazards.length > 0,
   };
 

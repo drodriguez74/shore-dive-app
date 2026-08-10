@@ -35,9 +35,24 @@
 
 import { classifyDiveSuitability, type DepthRangeFt } from "./dive-suitability";
 import { classifyShoreAccess, type ShoreAccessResult } from "./shore-access";
-import { classifyWaterAccess } from "./water-access";
+import { classifyWaterAccess, usesCoastalDistanceModel } from "./water-access";
 import type { LatLng } from "./distance";
 import type { SiteType } from "./types";
+
+/** A `ShoreAccessResult` shape with no signal at all — used in place of a
+ * live `classifyShoreAccess()` call for walk-in freshwater sites, where
+ * that coastal-distance model doesn't apply (see the 2026-08-10 fix in
+ * `site-dive-profile.tsx`, same reasoning). `distanceMiles: null` is what
+ * `haveShore` below already checks for, so a walk-in site correctly never
+ * contributes a shore-swim risk factor — it just isn't a shore-swim in
+ * this model's sense at all. */
+const NO_SHORE_ACCESS_SIGNAL: ShoreAccessResult = {
+  isShoreAccessible: false,
+  confidence: "unlikely",
+  nearestEntry: null,
+  distanceMiles: null,
+  method: "curated_entry",
+};
 
 export type DifficultyLevel = "beginner" | "intermediate" | "advanced" | "technical";
 
@@ -78,7 +93,13 @@ export function classifyDiveDifficulty(
 ): DiveDifficulty {
   const suitability = classifyDiveSuitability(depth);
   const water = classifyWaterAccess(siteType);
-  const shore: ShoreAccessResult = classifyShoreAccess(site);
+  // `classifyShoreAccess` measures distance to a *coastal* entry point —
+  // never call it for a walk-in freshwater site (found 2026-08-10, same
+  // bug class fixed in site-dive-profile.tsx). `usesCoastalDistanceModel`
+  // is the shared gate `shore-access.ts`'s own docs point callers at.
+  const shore: ShoreAccessResult = usesCoastalDistanceModel(siteType)
+    ? classifyShoreAccess(site)
+    : NO_SHORE_ACCESS_SIGNAL;
 
   const factors: string[] = [];
 

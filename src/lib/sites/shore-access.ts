@@ -352,6 +352,25 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
 ];
 
 /**
+ * `classifyShoreAccess`'s default entry-point list — deliberately a
+ * separate export from `SOUTH_FLORIDA_ENTRY_POINTS`, not that array
+ * renamed. Found 2026-08-10 (founder: "I may dive outside of Florida...
+ * I have no idea what scuba diver will use my app and where they are
+ * located"): every default in this module was silently Florida-only, and
+ * the underlying nearest-match distance math has no geographic dependency
+ * at all — only the *data* did. This is where a second researched region
+ * gets concatenated in later, with the same real-citation discipline as
+ * Florida (a hand-placed, cited `ShoreEntryPoint` per real access point —
+ * never a generated/estimated one). Kept as its own export, not merged
+ * into `SOUTH_FLORIDA_ENTRY_POINTS`, so a future audit of one region's
+ * entries never has to diff against another region's.
+ *
+ * Byte-identical to `SOUTH_FLORIDA_ENTRY_POINTS` today, so this change is
+ * behavior-neutral until a second region is actually curated.
+ */
+export const CURATED_ENTRY_POINTS: ShoreEntryPoint[] = [...SOUTH_FLORIDA_ENTRY_POINTS];
+
+/**
  * Founder follow-up (2026-08-10): resolved the "Boynton Inlet Stepping
  * Stones Reef" ambiguity flagged during the exceptions audit above. A
  * Google AI Overview, cross-checked by the founder, confirms it's a real
@@ -444,6 +463,20 @@ const SHORE_ACCESS_EXCEPTION_MATCH_MILES = 0.02;
 
 export type ShoreAccessConfidence = "likely" | "marginal" | "unlikely";
 
+/**
+ * Which signal produced a `ShoreAccessResult`. `"curated_entry"` is this
+ * module's original, trusted model: distance to a hand-researched,
+ * individually cited `ShoreEntryPoint` (every entry above has a real
+ * source). `"osm_tag"` is new (2026-08-10) and weaker by design: an
+ * unverified OpenStreetMap `scuba_diving:entry=shore` community tag on the
+ * site's own node — real and global (works anywhere OSM coverage exists,
+ * not just Florida), but nobody has checked it the way a curated entry has
+ * been. Callers must render these differently — see `confidence`'s own
+ * ceiling rule below for how that's enforced at the data level, not just
+ * left to UI discipline.
+ */
+export type ShoreAccessMethod = "curated_entry" | "osm_tag";
+
 export interface ShoreAccessResult {
   isShoreAccessible: boolean;
   /** Never "confirmed" — see this module's header. `likely` means well inside
@@ -452,23 +485,34 @@ export interface ShoreAccessResult {
   confidence: ShoreAccessConfidence;
   nearestEntry: ShoreEntryPoint | null;
   distanceMiles: number | null;
+  /** Which signal produced this result — see `ShoreAccessMethod`. */
+  method: ShoreAccessMethod;
 }
 
 /**
- * Classifies a site by its distance to the nearest known shore entry point.
+ * Classifies a site by its distance to the nearest known shore entry point,
+ * with a global fallback to OpenStreetMap's own per-site entry tag when no
+ * curated entry is in range.
  *
- * Returns `unlikely` with `isShoreAccessible: false` when there is no entry
- * point in range — which is also the honest answer for a site that may well be
- * shore-diveable from an entry nobody has catalogued yet. Absence of a known
- * entry is not evidence the dive is boat-only, and callers must not render it
- * as though it were.
+ * Returns `unlikely` with `isShoreAccessible: false` when neither signal
+ * finds anything — which is also the honest answer for a site that may well
+ * be shore-diveable from an entry nobody has catalogued yet. Absence of a
+ * known entry is not evidence the dive is boat-only, and callers must not
+ * render it as though it were.
+ *
+ * `osmEntryTag` is optional and, when supplied, is only ever consulted
+ * *after* the curated-entry model and `SHORE_ACCESS_EXCEPTIONS` have both
+ * had their say — a citation-backed "this is explicitly boat-only"
+ * exception must never be overridden by a bare community tag, and a real
+ * curated entry always outranks an unverified one. See `ShoreAccessMethod`.
  */
 export function classifyShoreAccess(
   site: LatLng,
-  entryPoints: ShoreEntryPoint[] = SOUTH_FLORIDA_ENTRY_POINTS,
+  entryPoints: ShoreEntryPoint[] = CURATED_ENTRY_POINTS,
+  options?: { osmEntryTag?: "shore" | "boat" | "unknown" },
 ): ShoreAccessResult {
   if (entryPoints.length === 0) {
-    return { isShoreAccessible: false, confidence: "unlikely", nearestEntry: null, distanceMiles: null };
+    return classifyByOsmTagOnly(options?.osmEntryTag, null, null);
   }
 
   let nearestEntry = entryPoints[0];
@@ -482,14 +526,16 @@ export function classifyShoreAccess(
   }
 
   if (best > SHORE_DIVE_MAX_MILES) {
-    return { isShoreAccessible: false, confidence: "unlikely", nearestEntry, distanceMiles: best };
+    return classifyByOsmTagOnly(options?.osmEntryTag, nearestEntry, best);
   }
 
   const isKnownException = SHORE_ACCESS_EXCEPTIONS.some(
     (exception) => distanceMiles(site, exception) <= SHORE_ACCESS_EXCEPTION_MATCH_MILES,
   );
   if (isKnownException) {
-    return { isShoreAccessible: false, confidence: "unlikely", nearestEntry, distanceMiles: best };
+    // A cited "boat-only" exception is final — never consult the OSM tag
+    // after this, even if it says "shore".
+    return { isShoreAccessible: false, confidence: "unlikely", nearestEntry, distanceMiles: best, method: "curated_entry" };
   }
 
   return {
@@ -497,5 +543,102 @@ export function classifyShoreAccess(
     confidence: best <= SHORE_DIVE_EASY_MILES ? "likely" : "marginal",
     nearestEntry,
     distanceMiles: best,
+    method: "curated_entry",
+  };
+}
+
+/**
+ * The `osm_tag` fallback tier — reached only when the curated-entry model
+ * found nothing in range (no exception check needed here: an exception can
+ * only match a site the curated model already found *within* range, so a
+ * site that reaches this function never triggered one). `confidence` is
+ * capped at `"marginal"`, never `"likely"` — an unverified community tag
+ * earns less trust than a researched entry, by design, not oversight.
+ *
+ * The positive (`"shore"`) branch deliberately nulls out `nearestEntry`/
+ * `distanceMiles` rather than passing through whatever the curated model
+ * found out of range: those fields mean "the entry this classification was
+ * measured from" (see `sites.shore_entry_id`'s own column comment), and an
+ * `osm_tag` result wasn't measured from a curated entry at all — a distant
+ * curated entry a continent away is not "why" this site classified as
+ * accessible, and surfacing it as context would misrepresent the evidence.
+ * The negative (fallthrough) branch keeps them, unchanged from the
+ * curated-entry model's own "unlikely rows explain themselves too" rule —
+ * that branch's classification genuinely IS "the nearest curated entry is
+ * this far away," so the explanation is real there.
+ */
+function classifyByOsmTagOnly(
+  osmEntryTag: "shore" | "boat" | "unknown" | undefined,
+  nearestEntry: ShoreEntryPoint | null,
+  // Named to avoid shadowing the imported `distanceMiles()` function above —
+  // this parameter is a value, not the function, and shadowing it here would
+  // silently make the function unreachable within this scope.
+  nearestEntryDistanceMiles: number | null,
+): ShoreAccessResult {
+  if (osmEntryTag === "shore") {
+    return {
+      isShoreAccessible: true,
+      confidence: "marginal",
+      nearestEntry: null,
+      distanceMiles: null,
+      method: "osm_tag",
+    };
+  }
+  return {
+    isShoreAccessible: false,
+    confidence: "unlikely",
+    nearestEntry,
+    distanceMiles: nearestEntryDistanceMiles,
+    method: "curated_entry",
+  };
+}
+
+/**
+ * Reconstructs a `ShoreAccessResult` from a `sites` row's own stored
+ * `shore_access`/`shore_access_method`/`shore_entry_id`/`shore_distance_yards`
+ * columns, instead of recomputing live from coordinates.
+ *
+ * Found 2026-08-10: every render-time consumer of shore access
+ * (`site-dive-profile.tsx`, `site-location-map.tsx`) called
+ * `classifyShoreAccess()` live, on every render, with no second/third
+ * argument — meaning even a Florida site's own detail page recomputed
+ * against `CURATED_ENTRY_POINTS` instead of trusting what was actually
+ * stored, and a non-Florida site classified via the `osm_tag` fallback at
+ * import time (which needs the site's own OSM tag, not available at
+ * render time) would silently regress back to `unlikely` on these pages —
+ * the live recompute has no way to know the tag that produced the stored
+ * result. This is the fix: read what's already there, never re-derive it
+ * with less information than the importer had.
+ *
+ * Returns `null` when `shore_access` itself is `null`/absent — "not yet
+ * classified" — so callers can fall back to a live curated-tier-only
+ * recompute (the same honest degradation this module's other functions
+ * already default to) rather than showing nothing at all for the
+ * (currently common) case of a site that predates this classification
+ * pipeline or was imported before a migration was applied.
+ *
+ * `shore_entry_id` is a slug, not a foreign key (see that column's own
+ * comment) — a slug that no longer resolves against `CURATED_ENTRY_POINTS`
+ * degrades to `nearestEntry: null` here, same "never invent a name" rule
+ * every other reader of that column already follows.
+ */
+export function shoreAccessFromStoredFields(stored: {
+  shore_access?: ShoreAccessConfidence | null;
+  shore_access_method?: ShoreAccessMethod | null;
+  shore_entry_id?: string | null;
+  shore_distance_yards?: number | null;
+}): ShoreAccessResult | null {
+  if (!stored.shore_access) return null;
+
+  const nearestEntry = stored.shore_entry_id
+    ? (CURATED_ENTRY_POINTS.find((entry) => entry.id === stored.shore_entry_id) ?? null)
+    : null;
+
+  return {
+    isShoreAccessible: stored.shore_access !== "unlikely",
+    confidence: stored.shore_access,
+    nearestEntry,
+    distanceMiles: stored.shore_distance_yards != null ? stored.shore_distance_yards / 1760 : null,
+    method: stored.shore_access_method ?? "curated_entry",
   };
 }

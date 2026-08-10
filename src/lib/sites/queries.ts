@@ -10,6 +10,7 @@ import type {
   SiteProvenance,
   LegalAccessStatus,
   ShoreAccessConfidence,
+  ShoreAccessMethod,
   SiteType,
 } from "./types";
 
@@ -111,6 +112,9 @@ interface RawSiteRow {
   depth_min_ft?: number | string | null;
   depth_max_ft?: number | string | null;
   shore_access?: ShoreAccessConfidence | null;
+  // `undefined` covers a row read before `0014_shore_access_method.sql` has
+  // been applied, same reasoning as the 0012/0013 columns in this interface.
+  shore_access_method?: ShoreAccessMethod | null;
   shore_entry_id?: string | null;
   shore_distance_yards?: number | string | null;
   // `undefined` covers a row read before `0013_sites_research_summary.sql`
@@ -138,6 +142,7 @@ interface RawSiteMarkerRow {
   depth_min_ft?: number | string | null;
   depth_max_ft?: number | string | null;
   shore_access?: ShoreAccessConfidence | null;
+  shore_access_method?: ShoreAccessMethod | null;
 }
 
 /** The exact `sites` column list every map-pin query selects. One constant so
@@ -150,11 +155,13 @@ interface RawSiteMarkerRow {
  * `shore_access` (`0012_sites_dive_metadata.sql`) qualify: certification-level
  * and shore-access filtering are map-level operations, and doing either
  * without the value per pin would mean fetching detail rows just to decide
- * what to draw. `shore_entry_id`/`shore_distance_yards` do not — they are the
- * one-line explanation for a single opened site, and live in
- * `SITE_DETAIL_COLUMNS` only. */
+ * what to draw. `shore_access_method` (`0014_shore_access_method.sql`)
+ * qualifies too, for the same reason `shore_access` itself does — a future
+ * "curated entries only" map filter needs it per-pin. `shore_entry_id`/
+ * `shore_distance_yards` do not — they are the one-line explanation for a
+ * single opened site, and live in `SITE_DETAIL_COLUMNS` only. */
 const SITE_MARKER_COLUMNS =
-  "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access";
+  "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access, shore_access_method";
 
 /**
  * The full `sites` column list for the site-detail read (T21.16) — every
@@ -179,7 +186,7 @@ const SITE_MARKER_COLUMNS =
  */
 const SITE_DETAIL_COLUMNS =
   "id, name, description, latitude, longitude, provenance, legal_access_status, site_type, " +
-  "depth_min_ft, depth_max_ft, shore_access, shore_entry_id, shore_distance_yards, " +
+  "depth_min_ft, depth_max_ft, shore_access, shore_access_method, shore_entry_id, shore_distance_yards, " +
   "research_summary, research_sources, research_summary_updated_at, " +
   "created_by, created_at, updated_at";
 
@@ -263,6 +270,7 @@ function normalizeSite(row: RawSiteRow): Site {
     depth_min_ft: toNullableNumber(row.depth_min_ft),
     depth_max_ft: toNullableNumber(row.depth_max_ft),
     shore_access: row.shore_access ?? null,
+    shore_access_method: row.shore_access_method ?? null,
     shore_entry_id: row.shore_entry_id ?? null,
     shore_distance_yards: toNullableNumber(row.shore_distance_yards),
     research_summary: row.research_summary ?? null,
@@ -289,6 +297,7 @@ function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean): SiteM
     depth_min_ft: toNullableNumber(row.depth_min_ft),
     depth_max_ft: toNullableNumber(row.depth_max_ft),
     shore_access: row.shore_access ?? null,
+    shore_access_method: row.shore_access_method ?? null,
     hasHazardReport,
   };
 }

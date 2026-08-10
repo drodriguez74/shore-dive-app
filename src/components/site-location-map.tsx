@@ -7,7 +7,8 @@ import { legalAccessLabel } from "@/components/legal-access-badge";
 import { formatShoreDistance } from "@/components/site-dive-profile";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/sites/logger";
-import { classifyShoreAccess, type ShoreEntryPoint } from "@/lib/sites/shore-access";
+import { classifyShoreAccess, shoreAccessFromStoredFields, type ShoreEntryPoint } from "@/lib/sites/shore-access";
+import { usesCoastalDistanceModel } from "@/lib/sites/water-access";
 import type { LatLng } from "@/lib/sites/distance";
 import {
   drawPinIcon,
@@ -19,7 +20,7 @@ import {
   SITE_TYPES,
   type PinIconSpec,
 } from "@/lib/sites/pin-icons";
-import type { SiteMarker, SiteType } from "@/lib/sites/types";
+import type { Site, SiteMarker, SiteType } from "@/lib/sites/types";
 
 /**
  * Single-site location map for the site detail page (T21.22).
@@ -185,9 +186,13 @@ export function siteLocationDescription(site: SiteMarker): string {
 
 export interface SiteLocationMapProps {
   /** The single site to show. Takes the same `SiteMarker` shape the
-   * exploration map renders, so both maps are driven by identical inputs and
-   * cannot drift into showing the same site differently. */
-  site: SiteMarker;
+   * exploration map renders (so both maps are driven by identical inputs
+   * and cannot drift into showing the same site differently), widened with
+   * `shore_entry_id`/`shore_distance_yards` — detail-only fields per
+   * `Site`'s own scoping, but this component is only ever used for a
+   * single site's own detail page (never a multi-pin map), so it needs the
+   * full explanation, not just the marker-level confidence. */
+  site: SiteMarker & Pick<Site, "shore_entry_id" | "shore_distance_yards">;
   /** Override the initial zoom. Read once at mount by Mapbox, like every
    * `initialViewState` field. */
   zoom?: number;
@@ -205,16 +210,24 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
   // being incidentally true. Mirrors `site-map.tsx`'s `hasPositionedRef`.
   const hasFitEntryLineRef = useRef(false);
 
-  // Shore access recomputed from the site's own coordinates, not trusted from
-  // a stored column — same reasoning `site-dive-profile.tsx` already
-  // documents for doing this itself: `0012`'s `shore_access` column may not
-  // be selected/populated for every caller, and re-deriving from lat/lng is
-  // cheap, always-correct, and guarantees this map can never disagree with
-  // what the page's own shore-access section says about the same site.
-  const shoreAccess = useMemo(
-    () => classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude }),
-    [site.latitude, site.longitude],
-  );
+  // Prefer the site's own stored classification over a live recompute —
+  // reversed 2026-08-10 from this component's original reasoning (recompute
+  // always, never trust the column). That original reasoning missed a real
+  // failure mode: a site classified via the `osm_tag` fallback at import
+  // time (using OSM's own entry tag, not available here) would silently
+  // regress back to `unlikely` on a live recompute, since this component has
+  // no access to the tag that produced the stored result — see
+  // `shoreAccessFromStoredFields`'s own header. Also now gated on
+  // `usesCoastalDistanceModel`: a walk-in freshwater site (spring/cave) must
+  // never run the coastal-distance model at all, live or stored — same fix
+  // already applied to `site-dive-profile.tsx`/`dive-difficulty.ts`.
+  const shoreAccess = useMemo(() => {
+    if (!usesCoastalDistanceModel(site.site_type)) return null;
+    return (
+      shoreAccessFromStoredFields(site) ??
+      classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude })
+    );
+  }, [site]);
 
   // Only sites `shore-access.ts` itself calls shore-accessible get a line —
   // never drawn for `unlikely` sites, where `nearestEntry` is populated but
@@ -222,7 +235,7 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
   // "swim from here" line. See `buildShoreEntryLine`'s own header for what
   // the line, midpoint and bounds actually are.
   const entryLine = useMemo(() => {
-    if (!shoreAccess.isShoreAccessible || !shoreAccess.nearestEntry) return null;
+    if (!shoreAccess || !shoreAccess.isShoreAccessible || !shoreAccess.nearestEntry) return null;
     return buildShoreEntryLine(shoreAccess.nearestEntry, site);
   }, [shoreAccess, site]);
 
@@ -412,7 +425,7 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
           {/* The distance itself, in the unit a diver actually thinks in —
               same `formatShoreDistance` the shore-access prose section uses,
               so the map and the text can never disagree about the number. */}
-          {entryLine && shoreAccess.distanceMiles !== null && (
+          {entryLine && shoreAccess && shoreAccess.distanceMiles !== null && (
             <Marker longitude={entryLine.midpoint.longitude} latitude={entryLine.midpoint.latitude}>
               <div
                 aria-hidden="true"
@@ -430,7 +443,7 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
           encodes visually. Same gap, same remedy as `site-map.tsx`'s
           visually-hidden site list. */}
       <p className="sr-only">{siteLocationDescription(site)}</p>
-      {entryLine && shoreAccess.nearestEntry && shoreAccess.distanceMiles !== null && (
+      {entryLine && shoreAccess && shoreAccess.nearestEntry && shoreAccess.distanceMiles !== null && (
         <p className="sr-only">{shoreEntryLineDescription(shoreAccess.nearestEntry, shoreAccess.distanceMiles)}</p>
       )}
     </div>

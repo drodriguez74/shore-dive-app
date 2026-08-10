@@ -64,4 +64,15 @@ describe("SitePinPreviewSheet", () => {
     expect(screen.getByText(/Shore-accessible/)).toBeTruthy();
     expect(screen.queryByText(/confirmed/i)).toBeNull();
   });
+
+  it("never renders 'unlikely' as boat-access-only — found 2026-08-10, this used to say 'Boat access likely'", () => {
+    // shore-access.ts's own rule, violated here until this fix: `unlikely`
+    // is also the honest answer for a site whose entry nobody has
+    // catalogued yet, not a finding that it's boat-only. A compact preview
+    // sheet has no room for that nuance, so the fix is to show nothing.
+    render(<SitePinPreviewSheet site={marker({ shore_access: "unlikely" })} onClose={vi.fn()} />);
+    expect(screen.queryByText(/[Bb]oat/)).toBeNull();
+    expect(screen.queryByText(/Shore-accessible/)).toBeNull();
+    expect(screen.queryByText(/Plausibly shore-accessible/)).toBeNull();
+  });
 });
