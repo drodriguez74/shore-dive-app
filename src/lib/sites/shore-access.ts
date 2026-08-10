@@ -268,6 +268,20 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
 ];
 
 /**
+ * Founder follow-up (2026-08-10): resolved the "Boynton Inlet Stepping
+ * Stones Reef" ambiguity flagged during the exceptions audit above. A
+ * Google AI Overview, cross-checked by the founder, confirms it's a real
+ * shore/snorkel dive: entered "just south of the Ocean Inlet Park lifeguard
+ * tower" (this module's `ocean-inlet-park-boynton` entry), ~400 ft to the
+ * near edge of the reef structures, 25-35 ft. The catalogued site's 553 yd
+ * distance is farther than that 400 ft figure — plausibly a farther module
+ * of the same multi-part reef deployment than the near edge the guidance
+ * describes — but nothing here contradicts the `marginal` classification
+ * already in place; no exception or coordinate change needed, this is
+ * confirmatory, not corrective.
+ */
+
+/**
  * Florida law requires a diver-down flag or buoy to be displayed while diving,
  * and requires boats to stay clear of it. This is a *legal* requirement, not a
  * recommendation, and it applies to every shore dive in this dataset — so it
