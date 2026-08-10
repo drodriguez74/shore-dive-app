@@ -172,6 +172,87 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
     longitude: -80.11239,
     note: "Foot of Perry Street. Entry for the Perry Street Rockpile artificial reef, ~200 yd out, 12-20 ft.",
   },
+  {
+    id: "dania-pier-north",
+    name: "North of Dania Beach Pier, Dania Beach",
+    // Founder-reported (2026-08-10), asking specifically about "Erojacks
+    // Dania" (the "Dania Jacks") after a Google AI Overview described it as
+    // a well-known, popular shore dive. Independently corroborated by two
+    // real dive-industry sources, not just the AI summary: Force-E Scuba
+    // Centers ("just north of the Dania Beach Pier... stacked and run from
+    // 100 yards to the first reef line... 10-25 ft") and Project Baseline
+    // Gulfstream, a citizen-science diving chapter ("a few hundred yards
+    // North of Dania pier... stacked and running from about 100 yards
+    // offshore to the first reef line"). Neither `mizell-johnson-dania`
+    // nor `perry-street-dania` covers this — both are ~0.3-1 mi further
+    // south than the real coastline point directly across from the jack
+    // field. Placed at the real Atlantic coastline (OSM `natural=coastline`,
+    // easternmost way) at the field's own latitude, not the pier structure
+    // itself or a geocoded address.
+    latitude: 26.06269,
+    longitude: -80.1113,
+    note: 'The "Erojacks"/"Dania Jacks" artificial reef begins ~100 yd out and runs to the first reef line, 10-25 ft. Inside Dr. Von D. Mizell-Eula Johnson State Park — no spearfishing or lobstering.',
+  },
+  {
+    id: "ocean-mall-singer-island",
+    name: "Ocean Mall Beach, Riviera Beach (Singer Island)",
+    // Found during the founder-requested deep-research sweep (2026-08-10):
+    // real, corroborated shore/snorkel access — a mitigation reef of
+    // limestone boulders in sandy channels just offshore Singer Island
+    // beach, 5-25 ft, diveable from shore on calm days (Pura Vida Divers,
+    // Waterfront Properties). Named entry: Ocean Mall on Singer Island
+    // (2511 Ocean Drive, Riviera Beach — parking, restrooms). Placed at the
+    // real Atlantic coastline (OSM `natural=coastline`, easternmost way)
+    // near that address, not the geocoded street point itself.
+    latitude: 26.7902,
+    longitude: -80.03175,
+    note: "Parking/restrooms at Ocean Mall. Mitigation reef of limestone boulders in sandy channels just offshore, 5-25 ft.",
+  },
+  {
+    id: "kreusler-park-palm-beach",
+    name: "R. G. Kreusler Park, Palm Beach",
+    // Found during the founder-requested deep-research sweep (2026-08-10).
+    // Weaker evidentiary tier than most entries in this file, documented
+    // honestly rather than overclaimed: no dive-shop or dive-report source
+    // was found describing this specific reef as a recreational shore dive.
+    // What's real and corroborated is (1) R. G. Kreusler Park is a genuine
+    // guarded public Atlantic beach (450 ft frontage, parking, restrooms —
+    // Palm Beach County) and (2) Palm Beach County's own official reef
+    // registry lists a designated "PB-59 Kreusler Park Ephemeral Reef" —
+    // "ephemeral reef" being FDEP's own technical term specifically for
+    // shallow (<15 ft) *nearshore* hardbottom, a distinct category from
+    // deeper offshore artificial-reef boat sites. That's the same class of
+    // evidence (technical habitat data, not a dive-shop writeup) already
+    // accepted for the Datura/El Prado/Vistamar reef-band entries. Placed
+    // at the real park coordinate (OSM `R C Kreusler Park` node), not a
+    // geocoded street address — the address geocode was ambiguous (the
+    // house number recurs in Manalapan and Highland Beach, different towns
+    // on the same barrier island).
+    latitude: 26.6166458,
+    longitude: -80.037219,
+    note: "Guarded beach, parking/restrooms. PB-59 'Ephemeral Reef' — shallow nearshore hardbottom, official designation but not independently confirmed as a recreational shore dive.",
+  },
+  {
+    id: "north-beach-oceanside-park-miami-beach",
+    name: "North Beach Oceanside Park, Miami Beach",
+    // Found during the founder-requested deep-research sweep (2026-08-10).
+    // Real University of Miami-led hybrid reef/coral-restoration
+    // installation ("U-LINK hybrid breakwater units"), deployed ~1,000 ft
+    // offshore of this park at ~14 ft depth (UM News, 2023). Part of the
+    // broader ReefLine project — the same project whose South Beach segment
+    // ("Traffic Jam"/Concrete Coral) is already catalogued at
+    // `south-beach-5th-st` and independently confirmed shore-diveable.
+    // ReefLine's own materials describe access as "swimming, diving,
+    // snorkelling, kayaking or...paddleboards" generally, but no
+    // dive-shop/dive-report source specifically names this North Beach
+    // segment as a shore dive the way the South Beach segment is — weaker
+    // tier than most entries here, documented honestly. Placed at the real
+    // Atlantic coastline (OSM `natural=coastline`, easternmost way) at the
+    // park's address (Collins Ave, 79th-87th St), not a geocoded point.
+    latitude: 25.8652239,
+    longitude: -80.1189714,
+    note: "Street parking, municipal lot at 79th St. U-LINK hybrid reef installation ~1,000 ft offshore, ~14 ft — part of the ReefLine project.",
+  },
   { id: "red-reef-boca", name: "Red Reef Park, Boca Raton", latitude: 26.36467, longitude: -80.06953 },
   {
     id: "south-beach-5th-st",
