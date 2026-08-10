@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SITE_QUERY_LIMIT,
   HAZARD_FLAG_QUERY_LIMIT,
+  LDS_STATUS_QUERY_LIMIT,
   MAX_SITE_QUERY_LIMIT,
   SITE_DETAIL_HAZARD_LIMIT,
   getSiteWithHazards,
+  listLdsStatusMarkers,
   listSitesInBounds,
   listSitesWithHazardFlag,
 } from "./queries";
@@ -489,6 +491,7 @@ describe("map-pin column list", () => {
     "name",
     "provenance",
     "shore_access",
+    "shore_access_method",
     "site_type",
   ];
 
@@ -638,7 +641,11 @@ describe("getSiteWithHazards", () => {
           "longitude",
           "name",
           "provenance",
+          "research_sources",
+          "research_summary",
+          "research_summary_updated_at",
           "shore_access",
+          "shore_access_method",
           "shore_distance_yards",
           "shore_entry_id",
           "site_type",
@@ -795,6 +802,7 @@ describe("getSiteWithHazards", () => {
         sites: {
           data: siteDetailRow({
             shore_access: "marginal",
+            shore_access_method: "curated_entry",
             shore_entry_id: "south-beach-5th-st",
             shore_distance_yards: "295.0",
             depth_min_ft: "20",
@@ -810,6 +818,7 @@ describe("getSiteWithHazards", () => {
       // reason the entry id and distance are persisted rather than recomputed.
       expect(result.site).toMatchObject({
         shore_access: "marginal",
+        shore_access_method: "curated_entry",
         shore_entry_id: "south-beach-5th-st",
         shore_distance_yards: 295,
         depth_min_ft: 20,
@@ -826,9 +835,86 @@ describe("getSiteWithHazards", () => {
         depth_min_ft: null,
         depth_max_ft: null,
         shore_access: null,
+        shore_access_method: null,
         shore_entry_id: null,
         shore_distance_yards: null,
       });
+    });
+
+    it("normalizes an OSM-tag-derived classification distinctly from a curated one", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            shore_access: "marginal",
+            shore_access_method: "osm_tag",
+            shore_entry_id: null,
+            shore_distance_yards: null,
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      // osm_tag rows genuinely have no curated entry point — null stays
+      // null, it isn't a missing-data bug for this method.
+      expect(result.site).toMatchObject({
+        shore_access: "marginal",
+        shore_access_method: "osm_tag",
+        shore_entry_id: null,
+        shore_distance_yards: null,
+      });
+    });
+
+    it("returns a well-formed research summary and its sources, coerced from the freshness timestamp", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            research_summary: "A popular, well-documented shore dive entered just north of the pier.",
+            research_sources: [{ title: "Force-E Scuba Centers", url: "https://www.force-e.com/example" }],
+            research_summary_updated_at: "2026-08-10T12:00:00.000Z",
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site).toMatchObject({
+        research_summary: "A popular, well-documented shore dive entered just north of the pier.",
+        research_sources: [{ title: "Force-E Scuba Centers", url: "https://www.force-e.com/example" }],
+        research_summary_updated_at: "2026-08-10T12:00:00.000Z",
+      });
+    });
+
+    it("normalizes an unresearched site's summary fields to explicit nulls", async () => {
+      useClient({ sites: { data: siteDetailRow(), error: null } });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site).toMatchObject({
+        research_summary: null,
+        research_sources: null,
+        research_summary_updated_at: null,
+      });
+    });
+
+    it("degrades a malformed research_sources value to null rather than rendering a broken shape", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            research_summary: "Some summary text.",
+            // Not an array of {title, url} — a writer bug, or a row from
+            // before this column's real shape was settled.
+            research_sources: [{ title: "Missing a URL" }, "just a string", { url: "https://example.com" }],
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site?.research_sources).toBeNull();
     });
 
     it("distinguishes 'no such site' (site: null, error: null) from a failure", async () => {
@@ -878,5 +964,130 @@ describe("getSiteWithHazards", () => {
         error: "Missing NEXT_PUBLIC_SUPABASE_URL",
       });
     });
+  });
+});
+
+// ---------------------------------------------------------------------
+// listLdsStatusMarkers — T22.6. Replaces `MOCK_LDS_MARKERS`, which used to
+// be the only data path feeding the homepage map's LDS pins. The property
+// that matters most here is the one `MOCK_LDS_MARKERS` could never prove:
+// a genuinely empty `lds_status` table must return an honest empty list,
+// never fall back to fabricated markers.
+// ---------------------------------------------------------------------
+
+function ldsRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "lds-1",
+    site_id: null,
+    name: "Test Dive Shop",
+    latitude: 26.7,
+    longitude: -80.1,
+    status: "open",
+    provenance: "COMMUNITY",
+    last_verified_at: "2026-08-01T00:00:00.000Z",
+    created_by: null,
+    created_at: "2026-08-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function ldsRows(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    ldsRow({ id: `lds-${i}`, name: `Shop ${i}`, last_verified_at: `2026-08-${String(i + 1).padStart(2, "0")}T00:00:00.000Z` }),
+  );
+}
+
+describe("listLdsStatusMarkers", () => {
+  it("names every lds_status column it needs instead of selecting *", async () => {
+    const recorder = useClient({ lds_status: { data: [], error: null } });
+
+    await listLdsStatusMarkers();
+
+    const selected = recorder.callsFor("lds_status", "select")[0].args[0] as string;
+    expect(selected).not.toBe("*");
+    expect(selected.split(",").map((c) => c.trim()).sort()).toEqual([
+      "created_at",
+      "created_by",
+      "id",
+      "last_verified_at",
+      "latitude",
+      "longitude",
+      "name",
+      "provenance",
+      "site_id",
+      "status",
+    ]);
+  });
+
+  it("returns an empty list — never fabricated markers — when the table is genuinely empty", async () => {
+    useClient({ lds_status: { data: [], error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: null });
+  });
+
+  it("collapses an append-only log to one row per shop via latestStatusPerShop", async () => {
+    useClient({
+      lds_status: {
+        data: [
+          ldsRow({ id: "r1", name: "Shop A", status: "closed", last_verified_at: "2026-08-01T00:00:00.000Z" }),
+          ldsRow({ id: "r2", name: "Shop A", status: "open", last_verified_at: "2026-08-05T00:00:00.000Z" }),
+        ],
+        error: null,
+      },
+    });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.markers).toHaveLength(1);
+    expect(result.markers[0]).toMatchObject({ id: "r2", status: "open" });
+  });
+
+  it("coerces PostgREST numeric-as-string coordinates to real numbers", async () => {
+    useClient({
+      lds_status: { data: [ldsRow({ latitude: "26.7753", longitude: "-80.0431" })], error: null },
+    });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.markers[0].latitude).toBe(26.7753);
+    expect(result.markers[0].longitude).toBe(-80.0431);
+  });
+
+  it("bounds the read with an explicit limit and flags truncation", async () => {
+    const recorder = useClient({ lds_status: { data: ldsRows(LDS_STATUS_QUERY_LIMIT), error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(recorder.callsFor("lds_status", "limit").map((c) => c.args)).toEqual([[LDS_STATUS_QUERY_LIMIT]]);
+    expect(result.truncated).toBe(true);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not flag truncation for a result under the limit", async () => {
+    useClient({ lds_status: { data: ldsRows(3), error: null } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result.truncated).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("returns { markers: [], error }, never throws, on a query error", async () => {
+    useClient({ lds_status: { data: null, error: postgrestError("permission denied") } });
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: "permission denied" });
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns { markers: [], error }, never throws, when createClient itself throws", async () => {
+    mockCreateClient.mockRejectedValue(new Error("Missing NEXT_PUBLIC_SUPABASE_URL"));
+
+    const result = await listLdsStatusMarkers();
+
+    expect(result).toEqual({ markers: [], truncated: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" });
   });
 });

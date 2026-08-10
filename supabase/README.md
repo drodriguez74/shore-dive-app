@@ -4,11 +4,27 @@ Covers `TASKS.md` P0-B.1–P0-B.4 (data provenance schema + RLS), the schema
 portion of P0-A.6 (`profiles` table), and P0-C.2 (data-retention policy).
 Traces back to `plan.md` P0-A/P0-B/P0-C and `THREAT_MODEL.md` §1, §2, §8, §11.
 
+**Status correction (2026-08-10): this file had drifted from reality and is
+now caught up for `0001`-`0012`.** The paragraph immediately below this one
+originally said no Supabase project existed and nothing here had run against
+a live database — both false as of this session, which read and wrote
+`sites` (445 real rows, including `depth_min_ft`, `shore_access`,
+`shore_entry_id`, `shore_distance_yards`) directly via the service-role key
+in `.env.local` across dozens of live queries. `0001`-`0012` are confirmed
+applied; Open items #13 and #15 below, which claimed `0011`/`0012` were
+unapplied due to "no DB credentials in the development environment," are
+stale and superseded by this note rather than rewritten in place, so the
+history of the claim stays visible. **`0013` (below) is genuinely new and
+genuinely not yet applied** — don't read this correction as "everything in
+this file is current now," only that `0001`-`0012`'s applied-status claims
+were wrong and are fixed.
+
 No Supabase project exists yet (`TASKS.md` P0-A.1 is an open founder action —
 external account creation). Nothing here has been run against a live
 database. It's written as standard, plain Postgres/Supabase SQL and reviewed
 for syntax, but treat it as unverified until it's actually applied once and
 `supabase db diff`/a manual smoke test confirms it behaves as expected.
+**(Stale — see the status correction immediately above.)**
 
 ## Files
 
@@ -82,8 +98,13 @@ for syntax, but treat it as unverified until it's actually applied once and
   classification *and the evidence it was derived from*, and a new
   `site_sources` table (one row per site/upstream-catalogue/upstream-id)
   replacing `0008`'s single-source columns. Schema + RLS in one file, same
-  convention as 0003/0005/0007. **Not applied** — Open item #15. See
-  "Dive metadata and multi-source provenance" below.
+  convention as 0003/0005/0007. Applied — see the status correction at the
+  top of this file. See "Dive metadata and multi-source provenance" below.
+- `migrations/0013_sites_research_summary.sql` — Task 22's researched
+  site-description enrichment: `research_summary`/`research_sources`/
+  `research_summary_updated_at` on `sites`, all nullable, schema-only (no
+  new table, no RLS change — same reasoning as 0012's dive-metadata columns
+  inheriting `sites`' existing RLS). **Not applied** — Open item #18.
 - `seed.sql` — 3 example `VERIFIED` sites for local dev / smoke testing. Not
   the real content seed (see below).
 
@@ -1010,3 +1031,17 @@ or the Supabase SQL editor used by a signed-in low-trust client.
     The honest fix is a moderation/derivation distinction this schema has no
     role model for yet — the same gap as items 6/8/11 — not a column-level
     policy. Flagged rather than papered over.
+18. **`0013_sites_research_summary.sql` has NOT been applied yet — founder
+    action.** Same manual-SQL-editor path as every migration in this
+    directory. Until applied, `getSiteWithHazards`'s explicit
+    `SITE_DETAIL_COLUMNS` list (which now names `research_summary`/
+    `research_sources`/`research_summary_updated_at`) means the site detail
+    page fails loudly rather than silently rendering without the new
+    section — same documented behavior as `0012` before it was applied (see
+    the status correction at the top of this file). **Application order
+    matters here in a way it hasn't for prior migrations**: this session
+    already hit a real incident where code was pushed and merged to `main`
+    ahead of the founder realizing a related PR needed following up — for
+    `0013` specifically, merging the app code to `main` before the founder
+    applies this migration would break the live site detail page for every
+    site, not just leave a feature dark. Apply before merging, not after.

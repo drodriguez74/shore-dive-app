@@ -9,21 +9,25 @@ import { PrefetchButton } from "@/components/prefetch-button";
  * at best). This nudges the user to prefetch everything in their plan
  * before they lose signal at the water's edge.
  *
- * There's no real dive-plan data model yet (that's Task 14/16 territory), so
- * this operates on mock/placeholder entries, same as prefetch-button.tsx.
+ * A real `dive_plans` table exists (`supabase/migrations/0007_dive_plans.sql`,
+ * plan.md Resolved Decision 5), but no caller anywhere queries a user's real
+ * plans and feeds them in here yet — that cross-site "your whole plan" view
+ * is a genuinely bigger change than this component's own scope (see
+ * `src/app/sites/[id]/page.tsx`'s note on the same gap) and remains a real,
+ * separate follow-up. Until then, `plan` defaults to `[]` — the honest
+ * "nothing to prefetch" state — never to fabricated entries. Found and fixed
+ * 2026-08-10: this used to default to two hardcoded fake sites (`MOCK_PLAN`),
+ * which the one real call site (the site detail page) already had to
+ * explicitly override with `plan={[]}` to avoid showing them — the mock was
+ * a live landmine for the next caller, not just unused.
  */
 
 export interface PretripPlanEntry {
   id: string;
   name: string;
-  /** ISO date (YYYY-MM-DD) — mock stand-in for a real dive-plan record. */
+  /** ISO date (YYYY-MM-DD). */
   diveDate: string;
 }
-
-const MOCK_PLAN: PretripPlanEntry[] = [
-  { id: "mock-site-1", name: "La Jolla Cove", diveDate: "2026-08-07" },
-  { id: "mock-site-2", name: "Shaw's Cove", diveDate: "2026-08-09" },
-];
 
 export interface PretripChecklistProps {
   plan?: PretripPlanEntry[];
@@ -37,7 +41,7 @@ function daysUntil(dateISO: string, now: Date): number | null {
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
 }
 
-export function PretripChecklist({ plan = MOCK_PLAN, className = "" }: PretripChecklistProps) {
+export function PretripChecklist({ plan = [], className = "" }: PretripChecklistProps) {
   if (plan.length === 0) return null;
 
   const now = new Date();

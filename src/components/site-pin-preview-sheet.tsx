@@ -32,10 +32,18 @@ export interface SitePinPreviewSheetProps {
   onClose: () => void;
 }
 
+// Deliberately no `unlikely` entry — found 2026-08-10 while converging this
+// app's shore-access renderers onto a shared standard: this map used to say
+// "Boat access likely" for `unlikely`, directly contradicting
+// shore-access.ts's own rule that `unlikely` also means "no known entry has
+// been catalogued yet," not "confirmed boat-only." A compact preview sheet
+// has no room for that nuance the way the detail page's full prose does, so
+// the honest fix here is to show nothing at all rather than a misleading
+// claim — same "hide rather than mislead" precedent `ShoreAccessBadge`
+// already sets for an unclassified site.
 const SHORE_ACCESS_PREVIEW_LABEL: Record<string, string> = {
   likely: "Plausibly shore-accessible",
   marginal: "Shore-accessible — long swim",
-  unlikely: "Boat access likely",
 };
 
 function formatDepth(minFt: number | null | undefined, maxFt: number | null | undefined): string | null {

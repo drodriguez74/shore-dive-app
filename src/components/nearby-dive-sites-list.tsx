@@ -40,6 +40,13 @@ export interface NearbyDiveSitesListProps {
    * decision. Already type-filtered by `DiveSiteExplorer` too. */
   inRadius: SiteWithDistance[];
   searchedExternally: boolean;
+  /** True when the server search hit `search-nearby`'s row cap and more
+   * matching sites exist than were returned (2026-08-10, alongside
+   * `SEARCH_NEARBY_ROW_LIMIT`) — same "never present a truncated list as
+   * complete" rule the hazard-report list on the site detail page already
+   * follows. Defaults to `false` so every existing caller/test still
+   * compiles untouched. */
+  truncated?: boolean;
   /** Currently selected site-type filter (2026-08-09) — owned by
    * `DiveSiteExplorer` so the map and this list stay in sync, same reason
    * radius state lives there. This component only renders the control. */
@@ -99,6 +106,7 @@ export function NearbyDiveSitesList({
   isSearching,
   inRadius,
   searchedExternally,
+  truncated = false,
   siteTypeFilter,
   onSiteTypeFilterChange,
   difficultyFilter,
@@ -170,6 +178,13 @@ export function NearbyDiveSitesList({
       {!hasCoords && status === "unavailable" && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Enable location access to see sites sorted by distance from you.
+        </p>
+      )}
+
+      {hasCoords && truncated && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Showing the closest matches — more sites exist in this area than fit in one search. Narrow the radius to
+          see a more complete picture.
         </p>
       )}
 

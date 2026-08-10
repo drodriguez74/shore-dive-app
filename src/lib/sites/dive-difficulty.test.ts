@@ -82,6 +82,17 @@ describe("classifyDiveDifficulty — shore swim distance", () => {
     expect(far.riskScore).toBeGreaterThanOrEqual(near.riskScore);
     expect(far.riskFactors.some((f) => /swim/i.test(f))).toBe(true);
   });
+
+  it("never runs the coastal-distance model on a spring/cave, even at coordinates a curated entry would score marginal for", () => {
+    // Found 2026-08-10, same bug class as site-dive-profile.tsx's fix:
+    // classifyDiveDifficulty used to call classifyShoreAccess unconditionally.
+    // DATURA_SECOND_REEF's coordinates would score "marginal" for a
+    // shore_reef — a spring/cave at the identical coordinates must never
+    // pick up a shore-swim risk factor, since the model doesn't apply to a
+    // walk-in freshwater site at all.
+    const spring = classifyDiveDifficulty(DATURA_SECOND_REEF, { minFt: 20, maxFt: 20 }, "spring");
+    expect(spring.riskFactors.some((f) => /swim/i.test(f))).toBe(false);
+  });
 });
 
 describe("classifyDiveDifficulty — honest unknowns", () => {

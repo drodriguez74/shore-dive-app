@@ -1,13 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "./logger";
+import { latestStatusPerShop, type LdsProvenance, type LdsStatusRow, type LdsStatusValue } from "@/components/lds/lds-status";
 import type {
   HazardReport,
+  ResearchSource,
   Site,
   SiteMarker,
   SiteProvenance,
   LegalAccessStatus,
   ShoreAccessConfidence,
+  ShoreAccessMethod,
   SiteType,
 } from "./types";
 
@@ -65,6 +68,33 @@ function toNullableNumber(value: number | string | null | undefined): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Narrows `research_sources`'s untyped `unknown` (see `RawSiteRow`) into
+ * `ResearchSource[] | null`. Defensive in the same direction as
+ * `toNullableNumber`: anything that isn't a well-formed array of
+ * `{title, url}` objects becomes `null` (never a partially-broken array
+ * that would render a citation with a missing link), since this codebase's
+ * own writer (Task 22's research-summary script) is the only intended
+ * source of this column and a malformed value means something upstream
+ * already went wrong — degrading to "no sources shown" is safer than
+ * rendering whatever shape actually arrived.
+ */
+function toResearchSources(value: unknown): ResearchSource[] | null {
+  if (!Array.isArray(value)) return null;
+  const sources: ResearchSource[] = [];
+  for (const entry of value) {
+    if (
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as Record<string, unknown>).title === "string" &&
+      typeof (entry as Record<string, unknown>).url === "string"
+    ) {
+      sources.push({ title: (entry as { title: string }).title, url: (entry as { url: string }).url });
+    }
+  }
+  return sources.length > 0 ? sources : null;
+}
+
 interface RawSiteRow {
   id: string;
   name: string;
@@ -82,8 +112,20 @@ interface RawSiteRow {
   depth_min_ft?: number | string | null;
   depth_max_ft?: number | string | null;
   shore_access?: ShoreAccessConfidence | null;
+  // `undefined` covers a row read before `0014_shore_access_method.sql` has
+  // been applied, same reasoning as the 0012/0013 columns in this interface.
+  shore_access_method?: ShoreAccessMethod | null;
   shore_entry_id?: string | null;
   shore_distance_yards?: number | string | null;
+  // `undefined` covers a row read before `0013_sites_research_summary.sql`
+  // has been applied, same as the 0012 columns above.
+  research_summary?: string | null;
+  // PostgREST returns `jsonb` already parsed as JSON, not a string — but
+  // this is still untyped over the wire, so it's `unknown` here and
+  // narrowed by `toResearchSources` below rather than trusted as
+  // `ResearchSource[]` straight off the response.
+  research_sources?: unknown;
+  research_summary_updated_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -100,6 +142,7 @@ interface RawSiteMarkerRow {
   depth_min_ft?: number | string | null;
   depth_max_ft?: number | string | null;
   shore_access?: ShoreAccessConfidence | null;
+  shore_access_method?: ShoreAccessMethod | null;
 }
 
 /** The exact `sites` column list every map-pin query selects. One constant so
@@ -112,11 +155,13 @@ interface RawSiteMarkerRow {
  * `shore_access` (`0012_sites_dive_metadata.sql`) qualify: certification-level
  * and shore-access filtering are map-level operations, and doing either
  * without the value per pin would mean fetching detail rows just to decide
- * what to draw. `shore_entry_id`/`shore_distance_yards` do not — they are the
- * one-line explanation for a single opened site, and live in
- * `SITE_DETAIL_COLUMNS` only. */
+ * what to draw. `shore_access_method` (`0014_shore_access_method.sql`)
+ * qualifies too, for the same reason `shore_access` itself does — a future
+ * "curated entries only" map filter needs it per-pin. `shore_entry_id`/
+ * `shore_distance_yards` do not — they are the one-line explanation for a
+ * single opened site, and live in `SITE_DETAIL_COLUMNS` only. */
 const SITE_MARKER_COLUMNS =
-  "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access";
+  "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access, shore_access_method";
 
 /**
  * The full `sites` column list for the site-detail read (T21.16) — every
@@ -141,7 +186,8 @@ const SITE_MARKER_COLUMNS =
  */
 const SITE_DETAIL_COLUMNS =
   "id, name, description, latitude, longitude, provenance, legal_access_status, site_type, " +
-  "depth_min_ft, depth_max_ft, shore_access, shore_entry_id, shore_distance_yards, " +
+  "depth_min_ft, depth_max_ft, shore_access, shore_access_method, shore_entry_id, shore_distance_yards, " +
+  "research_summary, research_sources, research_summary_updated_at, " +
   "created_by, created_at, updated_at";
 
 /** The full `hazard_reports` column list — every field of `HazardReport` in
@@ -224,8 +270,12 @@ function normalizeSite(row: RawSiteRow): Site {
     depth_min_ft: toNullableNumber(row.depth_min_ft),
     depth_max_ft: toNullableNumber(row.depth_max_ft),
     shore_access: row.shore_access ?? null,
+    shore_access_method: row.shore_access_method ?? null,
     shore_entry_id: row.shore_entry_id ?? null,
     shore_distance_yards: toNullableNumber(row.shore_distance_yards),
+    research_summary: row.research_summary ?? null,
+    research_sources: toResearchSources(row.research_sources),
+    research_summary_updated_at: row.research_summary_updated_at ?? null,
   };
 }
 
@@ -247,6 +297,7 @@ function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean): SiteM
     depth_min_ft: toNullableNumber(row.depth_min_ft),
     depth_max_ft: toNullableNumber(row.depth_max_ft),
     shore_access: row.shore_access ?? null,
+    shore_access_method: row.shore_access_method ?? null,
     hasHazardReport,
   };
 }
@@ -573,5 +624,90 @@ export async function getSiteWithHazards(id: string): Promise<SiteDetailResult> 
     // all, so it isn't a partial list — same convention as ListSitesResult's
     // error path.
     return { site: null, hazards: [], truncated: false, error: errorMessage(error) };
+  }
+}
+
+// ---------------------------------------------------------------------
+// lds_status — real reads, replacing `@/components/lds/lds-status`'s
+// `MOCK_LDS_MARKERS` (found 2026-08-10: the homepage map was rendering that
+// mock data live, unconditionally — not a fallback, the only data path that
+// existed. `lds_status` is a real table with real RLS as of 0001_init.sql;
+// nothing before this ever queried it).
+// ---------------------------------------------------------------------
+
+interface RawLdsStatusRow {
+  id: string;
+  site_id: string | null;
+  name: string;
+  latitude: number | string;
+  longitude: number | string;
+  status: LdsStatusValue;
+  provenance: LdsProvenance;
+  last_verified_at: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Every column `LdsStatusRow` needs — named explicitly rather than `select("*")`,
+ * same reasoning as `SITE_DETAIL_COLUMNS`: a schema/code mismatch should fail
+ * loudly here, not silently return whatever columns happen to exist. */
+const LDS_STATUS_COLUMNS =
+  "id, site_id, name, latitude, longitude, status, provenance, last_verified_at, created_by, created_at";
+
+/** Same ceiling convention as `MAX_SITE_QUERY_LIMIT` — this table is small
+ * today, but an explicit, honest limit costs nothing and means a future
+ * silent-truncation failure mode is already handled rather than invited. */
+export const LDS_STATUS_QUERY_LIMIT = 1000;
+
+export interface LdsStatusMarkersResult {
+  /** Already collapsed to one row per shop via `latestStatusPerShop` — see
+   * `lds-status.ts`'s header on why `lds_status` is an append-only log
+   * rather than update-in-place. Callers render this directly; they never
+   * need the raw log. */
+  markers: LdsStatusRow[];
+  truncated: boolean;
+  error: string | null;
+}
+
+/**
+ * Real `lds_status` read (Task 16, replacing `MOCK_LDS_MARKERS`). Public
+ * read per `lds_status`'s RLS (`0002_rls.sql`), so this never requires a
+ * signed-in session — same posture as `listSitesWithHazardFlag`.
+ *
+ * An empty result is the honest, expected state until real shop
+ * verifications exist — this function does NOT fall back to mock data on
+ * an empty table, only on a genuine read failure does it degrade (to an
+ * empty list, never to fabricated markers), per CLAUDE.md's standing rule
+ * against a UI implying data it doesn't have.
+ */
+export async function listLdsStatusMarkers(): Promise<LdsStatusMarkersResult> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("lds_status")
+      .select(LDS_STATUS_COLUMNS)
+      .order("last_verified_at", { ascending: false })
+      .limit(LDS_STATUS_QUERY_LIMIT)
+      .returns<RawLdsStatusRow[]>();
+
+    if (error) throw error;
+
+    const rows = data ?? [];
+    const truncated = rows.length >= LDS_STATUS_QUERY_LIMIT;
+    if (truncated) {
+      logger.warn("lds_status.list_truncated", { count: rows.length, limit: LDS_STATUS_QUERY_LIMIT });
+    }
+
+    const normalized: LdsStatusRow[] = rows.map((row) => ({
+      ...row,
+      latitude: toNumber(row.latitude),
+      longitude: toNumber(row.longitude),
+    }));
+
+    return { markers: latestStatusPerShop(normalized), truncated, error: null };
+  } catch (error) {
+    logger.error("lds_status.list_failed", { error: errorMessage(error) });
+    return { markers: [], truncated: false, error: errorMessage(error) };
   }
 }

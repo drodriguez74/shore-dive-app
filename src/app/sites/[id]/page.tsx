@@ -10,6 +10,7 @@ import { PretripChecklist } from "@/components/pretrip-checklist";
 import { SiteLocationMap } from "@/components/site-location-map";
 import { SiteDiveProfile } from "@/components/site-dive-profile";
 import { SiteSources } from "@/components/site-sources";
+import { SiteResearchSummary } from "@/components/site-research-summary";
 import type { SiteMarker } from "@/lib/sites/types";
 import { AddToDivePlanForm } from "./add-to-dive-plan-form";
 
@@ -41,13 +42,17 @@ import { AddToDivePlanForm } from "./add-to-dive-plan-form";
  * Scope notes (read before extending):
  * - Tide-station link (plan.md's "optional/bonus" item) is NOT built here —
  *   explicitly scoped out of this pass by the task brief.
- * - `PretripChecklist` is mounted with an explicit empty plan (`plan={[]}`),
- *   not its `MOCK_PLAN` default — an earlier version of this page omitted
- *   the prop and got the mock for free, which meant every single site's
- *   detail page showed "La Jolla Cove diving today" / "Shaw's Cove diving
- *   today" regardless of which real site you were looking at (caught
- *   2026-08-09 investigating a founder-reported UX bug — same root cause as
- *   the mock block that was also on the homepage). The component's own
+ * - `PretripChecklist` is mounted with an explicit empty plan (`plan={[]}`).
+ *   An earlier version of this page omitted the prop and got a hardcoded
+ *   `MOCK_PLAN` default for free, which meant every single site's detail
+ *   page showed "La Jolla Cove diving today" / "Shaw's Cove diving today"
+ *   regardless of which real site you were looking at (caught 2026-08-09
+ *   investigating a founder-reported UX bug — same root cause as the mock
+ *   block that was also on the homepage). `MOCK_PLAN` itself was removed
+ *   2026-08-10 (`plan` now defaults to `[]`), so this explicit prop is no
+ *   longer strictly load-bearing — kept anyway, since this page always has
+ *   real context (no real cross-site plan to show) and shouldn't rely on a
+ *   component default to express that. The component's own
  *   `if (plan.length === 0) return null` already exists for exactly this
  *   case, so passing `[]` is enough to make it correctly disappear rather
  *   than needing a new prop or a rewrite. A real query of this user's
@@ -133,7 +138,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
   // `SiteLocationMap` renders this site with the identical icon it carries on
   // the homepage map (same `pin-icons.ts` spec), rather than a second,
   // drifting representation of the same site.
-  const marker: SiteMarker = {
+  const marker: SiteMarker & Pick<typeof site, "shore_entry_id" | "shore_distance_yards"> = {
     id: site.id,
     name: site.name,
     latitude: site.latitude,
@@ -141,6 +146,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     provenance: site.provenance,
     legal_access_status: site.legal_access_status,
     site_type: site.site_type,
+    shore_access: site.shore_access,
+    shore_access_method: site.shore_access_method,
+    shore_entry_id: site.shore_entry_id,
+    shore_distance_yards: site.shore_distance_yards,
     hasHazardReport: hazards.length > 0,
   };
 
@@ -187,6 +196,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             ))}
         </section>
       )}
+
+      <SiteResearchSummary
+        summary={site.research_summary ?? null}
+        sources={site.research_sources ?? null}
+        updatedAt={site.research_summary_updated_at ?? null}
+      />
 
       <SiteDiveProfile site={site} />
 

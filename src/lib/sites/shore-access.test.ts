@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyShoreAccess,
+  shoreAccessFromStoredFields,
+  CURATED_ENTRY_POINTS,
   SHORE_DIVE_EASY_MILES,
   SHORE_DIVE_MAX_MILES,
   SOUTH_FLORIDA_ENTRY_POINTS,
   type ShoreEntryPoint,
 } from "./shore-access";
+
+/** A real coordinate far outside Florida (open Caribbean, off Santa
+ * Marta, Colombia) — used to prove the OSM-tag fallback tier and the
+ * "no signal at all" honest-unlikely path both work for a site nowhere
+ * near any curated entry, per the founder's own framing (2026-08-10):
+ * "I may dive outside of Florida... I have no idea what scuba diver will
+ * use my app and where they are located." */
+const SANTA_MARTA_AREA = { latitude: 11.24, longitude: -74.2 };
 
 /**
  * The baseline these thresholds come from is a real, measured dive (see the
@@ -35,6 +45,7 @@ describe("classifyShoreAccess — the Lauderdale-by-the-Sea baseline", () => {
     expect(result.isShoreAccessible).toBe(true);
     expect(result.confidence).toBe("likely");
     expect(result.nearestEntry?.id).toBe("datura-ave-lbts");
+    expect(result.method).toBe("curated_entry");
   });
 
   it("still calls the far end of the first reef line (300 yd) 'likely'", () => {
@@ -63,6 +74,7 @@ describe("classifyShoreAccess — the Lauderdale-by-the-Sea baseline", () => {
     const result = classifyShoreAccess(seawardOfDatura(1));
     expect(result.isShoreAccessible).toBe(false);
     expect(result.confidence).toBe("unlikely");
+    expect(result.method).toBe("curated_entry");
   });
 
   it("does not stretch to the Intracoastal-shore mistake (982 yd)", () => {
@@ -135,6 +147,25 @@ describe("SOUTH_FLORIDA_ENTRY_POINTS", () => {
   });
 });
 
+describe("CURATED_ENTRY_POINTS", () => {
+  // Found 2026-08-10 (founder: "I may dive outside of Florida... I have no
+  // idea what scuba diver will use my app and where they are located"):
+  // classifyShoreAccess's default was silently SOUTH_FLORIDA_ENTRY_POINTS.
+  // CURATED_ENTRY_POINTS is the new default and the place a second region
+  // gets concatenated in later — this pins that it's behavior-identical to
+  // the old default today, so the regression contract is explicit rather
+  // than assumed.
+  it("is byte-identical to SOUTH_FLORIDA_ENTRY_POINTS today", () => {
+    expect(CURATED_ENTRY_POINTS).toEqual(SOUTH_FLORIDA_ENTRY_POINTS);
+  });
+
+  it("is classifyShoreAccess's actual default parameter", () => {
+    const withDefault = classifyShoreAccess(seawardOfDatura(0.05));
+    const withExplicit = classifyShoreAccess(seawardOfDatura(0.05), CURATED_ENTRY_POINTS);
+    expect(withDefault).toEqual(withExplicit);
+  });
+});
+
 describe("classifyShoreAccess — South Beach / ReefLine 'Traffic Jam'", () => {
   it("classifies the underwater-highway installation as a shore dive from 5th Street", () => {
     // Real FWC record `Reefline - "Traffic Jam"` (20 ft) at its actual
@@ -199,11 +230,11 @@ describe("classifyShoreAccess — Kreusler Park Ephemeral Reef", () => {
 
 describe("classifyShoreAccess — U-LINK hybrid breakwater units", () => {
   it("classifies a real University of Miami reef installation off North Beach Oceanside Park", () => {
-    // Found 2026-08-10 during the deep-research sweep. A real UM-led
-    // hybrid-reef installation, part of the same ReefLine project as the
-    // already-confirmed south-beach-5th-st entry, but without a dedicated
-    // dive-shop writeup for this specific segment — documented as a
-    // weaker-evidence-tier entry, same discipline as Kreusler Park above.
+    // Found 2026-08-10 during the deep-research sweep, then upgraded from
+    // an initial weaker-evidence tier once the founder found
+    // divenavigator.com's dedicated listing, which states plainly "Entry
+    // Type: Boat & Shore" — a real dive-site directory, not just an
+    // inferred pattern from the sibling south-beach-5th-st entry.
     const ulink = { latitude: 25.866638, longitude: -80.116719 };
     const result = classifyShoreAccess(ulink);
     expect(result.isShoreAccessible).toBe(true);
@@ -329,5 +360,155 @@ describe("classifyShoreAccess — known exceptions override geometric range", ()
     const nearbyRealSite = { latitude: 26.7825, longitude: -80.04217 }; // Phil Foster Park Snorkel Trail
     const result = classifyShoreAccess(nearbyRealSite);
     expect(result.isShoreAccessible).toBe(true);
+  });
+});
+
+describe("classifyShoreAccess — global OSM-tag fallback (2026-08-10)", () => {
+  // Founder: "I may dive outside of Florida... I have no idea what scuba
+  // diver will use my app and where they are located." Every entry in
+  // CURATED_ENTRY_POINTS is Florida-only today, so a site anywhere else on
+  // Earth needs a real fallback signal rather than a permanent, uninformative
+  // `unlikely`. OpenStreetMap's own `scuba_diving:entry` tag — already
+  // parsed by osm-import.ts and previously discarded — is that signal.
+
+  it("classifies a non-Florida site as shore-accessible when OSM tags it 'shore', capped at marginal", () => {
+    const result = classifyShoreAccess(SANTA_MARTA_AREA, undefined, { osmEntryTag: "shore" });
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.confidence).toBe("marginal"); // never "likely" — unverified tag, not a researched entry
+    expect(result.method).toBe("osm_tag");
+  });
+
+  it("does not surface a distant curated entry as the 'reason' for an osm_tag result", () => {
+    // nearestEntry/distanceMiles mean "the entry this was measured from"
+    // (sites.shore_entry_id's own contract) — an osm_tag classification
+    // wasn't measured from any curated entry, so both must be null rather
+    // than showing e.g. "1,076 mi from Datura Avenue" as if that explained
+    // anything about a Colombia site.
+    const result = classifyShoreAccess(SANTA_MARTA_AREA, undefined, { osmEntryTag: "shore" });
+    expect(result.nearestEntry).toBeNull();
+    expect(result.distanceMiles).toBeNull();
+  });
+
+  it("never earns 'likely' from an OSM tag alone, regardless of how strong the tag is", () => {
+    // "marginal" is the honest ceiling for an unverified signal — the tag
+    // has only two positive-adjacent values ("shore"/"unknown"), so this is
+    // really just re-asserting the cap, but explicitly, since a future
+    // change adding more tag granularity must not accidentally reach
+    // "likely" without a real re-derivation of that promise.
+    const result = classifyShoreAccess(SANTA_MARTA_AREA, undefined, { osmEntryTag: "shore" });
+    expect(result.confidence).not.toBe("likely");
+  });
+
+  it("stays honestly 'unlikely' for a non-Florida site with no OSM tag — never a false positive or a crash", () => {
+    const result = classifyShoreAccess(SANTA_MARTA_AREA, undefined, { osmEntryTag: "unknown" });
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+    expect(result.method).toBe("curated_entry");
+  });
+
+  it("stays 'unlikely' for a non-Florida site when no options are passed at all", () => {
+    const result = classifyShoreAccess(SANTA_MARTA_AREA);
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.nearestEntry).not.toBeNull(); // still reports the (very distant) nearest Florida entry
+    expect(result.distanceMiles).toBeGreaterThan(SHORE_DIVE_MAX_MILES);
+  });
+
+  it("treats a 'boat' OSM tag the same as no tag — never accessible", () => {
+    const result = classifyShoreAccess(SANTA_MARTA_AREA, undefined, { osmEntryTag: "boat" });
+    expect(result.isShoreAccessible).toBe(false);
+  });
+
+  it("lets a cited boat-only exception win even when OSM tags the same site 'shore'", () => {
+    // Goggle-Eye Reef — DiveBuddy.com explicitly says this needs a boat
+    // charter (see the exceptions describe block above). A bare community
+    // tag must never override a citation-backed exception.
+    const goggleEyeReef = { latitude: 26.5505, longitude: -80.03832 };
+    const result = classifyShoreAccess(goggleEyeReef, undefined, { osmEntryTag: "shore" });
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+    expect(result.method).toBe("curated_entry");
+  });
+
+  it("prefers a real curated entry over the OSM tag when both are available", () => {
+    // A site well within Datura's curated range should classify via the
+    // curated entry, not fall through to the (weaker) tag tier, even if a
+    // tag happens to be present.
+    const result = classifyShoreAccess(seawardOfDatura(0.05), undefined, { osmEntryTag: "shore" });
+    expect(result.method).toBe("curated_entry");
+    expect(result.confidence).toBe("likely");
+  });
+});
+
+describe("shoreAccessFromStoredFields", () => {
+  // Found 2026-08-10: every render-time consumer used to call
+  // classifyShoreAccess() live instead of trusting what osm-import.ts
+  // already computed and stored — silently regressing an osm_tag-derived
+  // site back to `unlikely` on its own detail page, since a live recompute
+  // has no access to the OSM tag that produced the stored result.
+
+  it("returns null when shore_access itself is null — 'not yet classified', callers should recompute live", () => {
+    expect(shoreAccessFromStoredFields({ shore_access: null })).toBeNull();
+    expect(shoreAccessFromStoredFields({})).toBeNull();
+  });
+
+  it("reconstructs a curated-entry result, resolving the stored slug to a real entry point", () => {
+    const result = shoreAccessFromStoredFields({
+      shore_access: "marginal",
+      shore_access_method: "curated_entry",
+      shore_entry_id: "datura-ave-lbts",
+      shore_distance_yards: 530,
+    });
+    expect(result?.isShoreAccessible).toBe(true);
+    expect(result?.confidence).toBe("marginal");
+    expect(result?.nearestEntry?.id).toBe("datura-ave-lbts");
+    expect(result?.distanceMiles).toBeCloseTo(530 / 1760, 5);
+    expect(result?.method).toBe("curated_entry");
+  });
+
+  it("reconstructs an osm_tag result with no entry point to name", () => {
+    const result = shoreAccessFromStoredFields({
+      shore_access: "marginal",
+      shore_access_method: "osm_tag",
+      shore_entry_id: null,
+      shore_distance_yards: null,
+    });
+    expect(result?.isShoreAccessible).toBe(true);
+    expect(result?.method).toBe("osm_tag");
+    expect(result?.nearestEntry).toBeNull();
+    expect(result?.distanceMiles).toBeNull();
+  });
+
+  it("degrades a stale/unresolvable shore_entry_id to null rather than inventing a name", () => {
+    // Same "never invent a name for a slug that doesn't resolve" rule
+    // shore_entry_id's own column comment (0012) already documents.
+    const result = shoreAccessFromStoredFields({
+      shore_access: "marginal",
+      shore_access_method: "curated_entry",
+      shore_entry_id: "some-entry-that-no-longer-exists",
+      shore_distance_yards: 400,
+    });
+    expect(result?.nearestEntry).toBeNull();
+    expect(result?.distanceMiles).toBeCloseTo(400 / 1760, 5); // distance still shown, just no name
+  });
+
+  it("defaults method to curated_entry when the stored method is missing (a row from before shore_access_method existed)", () => {
+    const result = shoreAccessFromStoredFields({
+      shore_access: "likely",
+      shore_entry_id: "datura-ave-lbts",
+      shore_distance_yards: 100,
+    });
+    expect(result?.method).toBe("curated_entry");
+  });
+
+  it("reconstructs an honest unlikely result too, distance and entry preserved for 'why was this ruled out'", () => {
+    const result = shoreAccessFromStoredFields({
+      shore_access: "unlikely",
+      shore_access_method: "curated_entry",
+      shore_entry_id: "datura-ave-lbts",
+      shore_distance_yards: 10000,
+    });
+    expect(result?.isShoreAccessible).toBe(false);
+    expect(result?.nearestEntry?.id).toBe("datura-ave-lbts");
+    expect(result?.distanceMiles).toBeCloseTo(10000 / 1760, 5);
   });
 });

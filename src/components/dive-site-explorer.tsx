@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SiteMap } from "@/components/site-map";
 import { NearbyDiveSitesList, type SiteWithDistance } from "@/components/nearby-dive-sites-list";
-import { MOCK_LDS_MARKERS } from "@/components/lds/lds-status";
+import type { LdsStatusRow } from "@/components/lds/lds-status";
 import { useGeolocation, type GeolocationCoords } from "@/hooks/use-geolocation";
 import { distanceMiles } from "@/lib/sites/distance";
 import { errorMessage } from "@/lib/error-message";
@@ -204,6 +204,13 @@ interface SearchNearbyResponse {
   sites: SiteMarker[];
   error: string | null;
   searchedExternally: boolean;
+  /** True when the route's local read hit `SEARCH_NEARBY_ROW_LIMIT` and
+   * more matching sites exist than were returned — same "never present a
+   * truncated list as complete" contract `ListSitesResult.truncated`
+   * already establishes in `queries.ts`. Optional so this stays
+   * backward-compatible with any cached/mocked response shape from before
+   * this field existed. */
+  truncated?: boolean;
 }
 
 /** Same shape/reasoning `nearby-dive-sites-list.tsx` documented before
@@ -215,6 +222,42 @@ interface SearchNearbyState {
   sites: SiteMarker[] | null;
   searchedExternally: boolean;
   radiusMiles: number | null;
+  /** See `SearchNearbyResponse.truncated`. `false` for every state that
+   * isn't a real, current server result (idle/loading/error) — truncation
+   * is a fact about a specific result set, not a thing to guess at when
+   * there isn't one. */
+  truncated: boolean;
+}
+
+/**
+ * Decides the next `SearchNearbyState` from a resolved (HTTP-200)
+ * `/api/sites/search-nearby` response — extracted as a pure function so
+ * this decision is unit-testable without mounting `DiveSiteExplorer`
+ * (which needs geolocation + `fetch` mocked to render at all).
+ *
+ * Found 2026-08-10: the route's own contract (its header comment) reserves
+ * `error` for a LOCAL database failure and degrades to `sites: []` with a
+ * 200 status specifically so a transient DB hiccup never fails the whole
+ * request — but the caller here used to read only `data.sites`, never
+ * `data.error`, so a real server-side failure silently looked identical to
+ * "genuinely zero sites nearby": both produced `status: "done", sites: []`.
+ * A response with `error` set now routes through `"error"` instead —  the
+ * same path a network failure already takes, which correctly falls back to
+ * client-side filtering of the already-loaded `sites` prop (the cached
+ * full catalog from SSR) rather than presenting a backend failure as "no
+ * sites here."
+ */
+export function nextSearchStateFromResponse(data: SearchNearbyResponse, radiusMiles: number): SearchNearbyState {
+  if (data.error) {
+    return { status: "error", sites: null, searchedExternally: false, radiusMiles, truncated: false };
+  }
+  return {
+    status: "done",
+    sites: data.sites,
+    searchedExternally: data.searchedExternally,
+    radiusMiles,
+    truncated: data.truncated ?? false,
+  };
 }
 
 const IDLE_SEARCH_STATE: SearchNearbyState = {
@@ -222,6 +265,7 @@ const IDLE_SEARCH_STATE: SearchNearbyState = {
   sites: null,
   searchedExternally: false,
   radiusMiles: null,
+  truncated: false,
 };
 
 export interface DiveSiteExplorerProps {
@@ -231,6 +275,12 @@ export interface DiveSiteExplorerProps {
    * is "All", and if the search-nearby fetch fails. Same fallback contract
    * `NearbyDiveSitesList` had pre-T21.6, just now owned up here instead. */
   sites: SiteMarker[];
+  /** Real `lds_status` read from `src/app/page.tsx` (Task 16, T22.6 — this
+   * used to be `MOCK_LDS_MARKERS`, rendered on the live homepage
+   * unconditionally, not as a fallback). Defaults to `[]`, the honest
+   * "nothing verified yet" state, rather than to fabricated shop pins if a
+   * future caller forgets to pass it. */
+  ldsMarkers?: LdsStatusRow[];
   /** Resolved server-side by `src/app/page.tsx`. Used only to explain the
    * `T21.13` auth gate in the empty state — being signed in is what unlocks
    * the OpenStreetMap search, and without saying so an anonymous diver in a
@@ -276,7 +326,7 @@ export interface DiveSiteExplorerProps {
  * duplication that already existed pre-T21.6 between `SiteMap` and
  * `NearbyDiveSitesList`, just relocated, not introduced by this change).
  */
-export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorerProps) {
+export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }: DiveSiteExplorerProps) {
   const { status, coords } = useGeolocation();
   // Radius + site-type filter persist across navigation (reported 2026-08-09:
   // browsing to a site detail page and back silently reset both). Same
@@ -310,7 +360,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
     // functionally still immediate, just outside the effect's own
     // synchronous body.
     const loadingTimer = setTimeout(() => {
-      setSearch({ status: "loading", sites: null, searchedExternally: false, radiusMiles });
+      setSearch({ status: "loading", sites: null, searchedExternally: false, radiusMiles, truncated: false });
     }, 0);
 
     (async (resolvedCoords: GeolocationCoords) => {
@@ -327,7 +377,11 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
           throw new Error(`search-nearby responded ${response.status}`);
         }
         const data = (await response.json()) as SearchNearbyResponse;
-        setSearch({ status: "done", sites: data.sites, searchedExternally: data.searchedExternally, radiusMiles });
+        const nextState = nextSearchStateFromResponse(data, radiusMiles);
+        if (nextState.status === "error") {
+          logger.warn("nearby_search_returned_error", { message: data.error });
+        }
+        setSearch(nextState);
       } catch (error) {
         if (controller.signal.aborted) return;
         // Nice-to-have enhancement, not a page-breaking dependency — log for
@@ -336,7 +390,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
         // filtering of the `sites` prop below. Never surface this as an
         // error state to the diver.
         logger.warn("nearby_search_fetch_failed", { message: errorMessage(error) });
-        setSearch({ status: "error", sites: null, searchedExternally: false, radiusMiles });
+        setSearch({ status: "error", sites: null, searchedExternally: false, radiusMiles, truncated: false });
       }
     })(coords);
 
@@ -363,6 +417,12 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
     Number.isFinite(radiusMiles) && searchMatchesCurrentRadius && search.status === "done" && search.sites !== null;
   const isSearching = Number.isFinite(radiusMiles) && searchMatchesCurrentRadius && search.status === "loading";
   const searchedExternally = useServerResult && search.searchedExternally;
+  // Same "only meaningful when the server result is what's actually being
+  // rendered" gating as `searchedExternally` immediately above — `search`
+  // can be stale (a prior radius) or not a real result at all
+  // (idle/loading/error), and `truncated` must describe the set on screen,
+  // not a leftover flag from a different search.
+  const resultsTruncated = useServerResult && search.truncated;
 
   const clientInRadius = useMemo<SiteWithDistance[]>(() => {
     if (!sitesWithDistance) return [];
@@ -450,7 +510,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
   return (
     <>
       <div className="flex-1">
-        <SiteMap ldsMarkers={MOCK_LDS_MARKERS} siteMarkers={mapSiteMarkers} emptyStateMessage={mapEmptyStateMessage} />
+        <SiteMap ldsMarkers={ldsMarkers} siteMarkers={mapSiteMarkers} emptyStateMessage={mapEmptyStateMessage} />
       </div>
 
       <NearbyDiveSitesList
@@ -463,6 +523,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
         isSearching={isSearching}
         inRadius={filteredInRadius}
         searchedExternally={searchedExternally}
+        truncated={resultsTruncated}
         siteTypeFilter={siteTypeFilter}
         onSiteTypeFilterChange={setSiteTypeFilter}
         difficultyFilter={difficultyFilter}

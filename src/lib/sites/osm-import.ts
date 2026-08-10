@@ -24,7 +24,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "./logger";
+import { classifyShoreAccess } from "./shore-access";
+import { usesCoastalDistanceModel } from "./water-access";
 import type { SiteProvenance, SiteType } from "./types";
+import type { ShoreAccessConfidence, ShoreAccessMethod } from "./shore-access";
 
 export interface OsmDiveSite {
   osmId: string;
@@ -316,9 +319,62 @@ interface InsertableSiteRow {
   site_type: SiteType;
   external_source: string;
   external_id: string;
+  shore_access: ShoreAccessConfidence | null;
+  shore_access_method: ShoreAccessMethod | null;
+  shore_entry_id: string | null;
+  shore_distance_yards: number | null;
+}
+
+/**
+ * Classifies a freshly-imported site's shore access at insert time, using
+ * whatever OSM's own `scuba_diving:entry` tag says (`site.entryType`) as a
+ * global fallback once `classifyShoreAccess`'s curated-entry model has had
+ * its say — see that function's own doc comment for the full precedence
+ * rules (a cited exception always wins; a curated entry always outranks an
+ * unverified tag). Found 2026-08-10: this pipeline never populated
+ * `shore_access` at all before this, for any site, including Florida — not
+ * just a gap in global coverage.
+ *
+ * Gated on `usesCoastalDistanceModel(site.siteType)`, reusing
+ * `water-access.ts`'s existing exemption rather than re-deriving it — the
+ * coastal-distance model (and, by extension, the OSM-tag fallback that
+ * only makes sense in that same "distance to open water" frame) is
+ * nonsensical for a walk-in freshwater spring/cave, exactly the bug
+ * `site-dive-profile.tsx` was fixed for on the render side (2026-08-10,
+ * commit 4bb0990). Springs/caves stay fully unclassified here — never
+ * `unlikely`, which would read as "assessed and rejected" rather than "this
+ * model doesn't apply."
+ */
+function classifyOsmSiteShoreAccess(site: OsmDiveSite): {
+  access: ShoreAccessConfidence | null;
+  method: ShoreAccessMethod | null;
+  entryId: string | null;
+  yards: number | null;
+} {
+  if (!usesCoastalDistanceModel(site.siteType)) {
+    return { access: null, method: null, entryId: null, yards: null };
+  }
+
+  const result = classifyShoreAccess(
+    { latitude: site.latitude, longitude: site.longitude },
+    undefined,
+    { osmEntryTag: site.entryType },
+  );
+
+  return {
+    access: result.confidence,
+    method: result.method,
+    entryId: result.nearestEntry?.id ?? null,
+    // classifyShoreAccess returns miles; this column is yards, same
+    // conversion 0012_sites_dive_metadata.sql's own comment specifies for
+    // any writer of shore_distance_yards.
+    yards: result.distanceMiles != null ? Math.round(result.distanceMiles * 1760 * 10) / 10 : null,
+  };
 }
 
 function toInsertableRow(site: OsmDiveSite): InsertableSiteRow {
+  const shore = classifyOsmSiteShoreAccess(site);
+
   return {
     name: site.name?.trim() || "Unnamed shore dive site (OpenStreetMap import)",
     description: buildOsmDescription(site),
@@ -340,6 +396,10 @@ function toInsertableRow(site: OsmDiveSite): InsertableSiteRow {
     site_type: site.siteType,
     external_source: EXTERNAL_SOURCE,
     external_id: site.osmId,
+    shore_access: shore.access,
+    shore_access_method: shore.method,
+    shore_entry_id: shore.entryId,
+    shore_distance_yards: shore.yards,
   };
 }
 

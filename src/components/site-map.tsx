@@ -8,7 +8,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { ProvenanceBadge } from "@/components/provenance-badge";
 import { LastVerifiedBadge } from "@/components/lds/last-verified-badge";
 import { LdsSubmissionForm } from "@/components/lds/lds-submission-form";
-import { LDS_STATUS_LABEL, MOCK_LDS_MARKERS, type LdsStatusRow, type LdsStatusValue } from "@/components/lds/lds-status";
+import { LDS_STATUS_LABEL, type LdsStatusRow, type LdsStatusValue } from "@/components/lds/lds-status";
 import { legalAccessLabel } from "@/components/legal-access-badge";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { useExplorerPreferences } from "@/lib/sites/explorer-preferences";
@@ -111,18 +111,22 @@ const SITE_PINS_SOURCE_ID = "site-pins";
 const SITE_PINS_LAYER_ID = "site-pins-layer";
 
 export interface SiteMapProps {
-  /** LDS/fill-station markers to render (T16.1). Defaults to mock data
-   * (`lds_status` shape, already collapsed to "current status per shop" —
-   * see `lds-status.ts`) since there's no live Supabase project yet. */
+  /** LDS/fill-station markers to render (T16.1), already collapsed to
+   * "current status per shop" (`latestStatusPerShop`, see `lds-status.ts`).
+   * Real `lds_status` data as of T22.6 — `src/lib/sites/queries.ts`'s
+   * `listLdsStatusMarkers()`, fed by `src/app/page.tsx`. Found and fixed
+   * 2026-08-10: this used to default to `MOCK_LDS_LOG`'s hand-written fake
+   * shops and render on the live homepage unconditionally, not as a
+   * fallback — nothing ever queried the real table. Defaults to `[]`, the
+   * honest "no verified shops yet" state, same convention `siteMarkers`
+   * below already followed. */
   ldsMarkers?: LdsStatusRow[];
   /** Real `sites` pins (Task 11.5), rendered via a GeoJSON Source + symbol
    * Layer as of T21.7 — fed by whichever caller owns the current
    * radius-filtered/search result set (T21.6's `DiveSiteExplorer` on the
    * homepage; a plain full `sites` fetch anywhere else this is reused).
-   * Defaults to an empty array rather than mock data: unlike LDS markers
-   * (still mock, Task 16 not yet live-wired), `sites`/`hazard_reports` are
-   * actually live in Supabase — an empty default means "no sites fetched
-   * yet / fetch failed", never a stand-in for real data. */
+   * Defaults to an empty array, never mock data: an empty default means "no
+   * sites fetched yet / fetch failed", never a stand-in for real data. */
   siteMarkers?: SiteMarker[];
   /**
    * Explains an empty `siteMarkers` — e.g. "No sites within 25 mi of your
@@ -138,7 +142,7 @@ export interface SiteMapProps {
   emptyStateMessage?: string | null;
 }
 
-export function SiteMap({ ldsMarkers = MOCK_LDS_MARKERS, siteMarkers = [], emptyStateMessage = null }: SiteMapProps) {
+export function SiteMap({ ldsMarkers = [], siteMarkers = [], emptyStateMessage = null }: SiteMapProps) {
   const [openMarkerId, setOpenMarkerId] = useState<string | null>(null);
   const [reportingMarkerId, setReportingMarkerId] = useState<string | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
