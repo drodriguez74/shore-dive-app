@@ -45,5 +45,19 @@ export async function createClient() {
         }
       },
     },
+    global: {
+      // Found 2026-08-10: `/api/sites/search-nearby` (a Route Handler, not a
+      // Server Component) was intermittently failing with a bare "TypeError:
+      // fetch failed" specifically on larger bounding-box queries (250 mi,
+      // ~435 rows) while the identical query succeeded instantly outside
+      // Next's dev server — the query, bounds, and Supabase project were all
+      // confirmed fine independently. Next.js App Router patches the global
+      // `fetch` to add its own Data Cache, and Supabase's own Next.js SSR
+      // guidance is to opt this client's fetch out of it explicitly — this
+      // client's calls are always live reads against provenance-tagged data
+      // (sites/hazard_reports/etc.), never something that should be served
+      // from a stale Next-managed cache anyway.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }

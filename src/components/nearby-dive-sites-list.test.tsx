@@ -183,3 +183,51 @@ describe("NearbyDiveSitesList — per-row shore-access badge", () => {
     expect(screen.queryByText("Boat")).toBeNull();
   });
 });
+
+describe("NearbyDiveSitesList — truncated results", () => {
+  // Found 2026-08-10 alongside search-nearby's new row cap
+  // (SEARCH_NEARBY_ROW_LIMIT): a dense area routinely hits it now, and the
+  // route already computed `truncated` but never told the caller — same
+  // "never present a truncated list as complete" rule the site detail
+  // page's hazard-report list already follows.
+
+  it("shows a note when the result set is truncated", () => {
+    render(
+      <NearbyDiveSitesList
+        {...BASE_PROPS}
+        coords={{ latitude: 26.1, longitude: -80.1 }}
+        inRadius={[{ site: BASE_PROPS.sites[0], miles: 1.2 }]}
+        truncated
+      />,
+    );
+    expect(screen.getByText(/more sites exist in this area/)).toBeTruthy();
+  });
+
+  it("shows no note when the result set is complete", () => {
+    render(
+      <NearbyDiveSitesList
+        {...BASE_PROPS}
+        coords={{ latitude: 26.1, longitude: -80.1 }}
+        inRadius={[{ site: BASE_PROPS.sites[0], miles: 1.2 }]}
+        truncated={false}
+      />,
+    );
+    expect(screen.queryByText(/more sites exist in this area/)).toBeNull();
+  });
+
+  it("defaults to not truncated when the prop is omitted, same as every existing caller/test", () => {
+    render(
+      <NearbyDiveSitesList
+        {...BASE_PROPS}
+        coords={{ latitude: 26.1, longitude: -80.1 }}
+        inRadius={[{ site: BASE_PROPS.sites[0], miles: 1.2 }]}
+      />,
+    );
+    expect(screen.queryByText(/more sites exist in this area/)).toBeNull();
+  });
+
+  it("does not show the note before coordinates resolve, even if truncated is somehow true", () => {
+    render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} truncated />);
+    expect(screen.queryByText(/more sites exist in this area/)).toBeNull();
+  });
+});

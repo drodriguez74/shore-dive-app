@@ -67,6 +67,26 @@ const LOCAL_RESULT_THRESHOLD = 3;
 // clamps it.
 const MAX_RADIUS_MILES = 500;
 
+// Row cap for this route's local read — deliberately smaller than
+// `DEFAULT_SITE_QUERY_LIMIT` (500), which `listSitesInBounds` would
+// otherwise default to. Found 2026-08-10, live-reproduced in both `next
+// dev` and a production build (`next build && next start`), not a dev-only
+// artifact: a large-radius query (390 rows succeeds, ~400+ fails) makes
+// this route's own outbound Supabase fetch throw a bare "TypeError: fetch
+// failed" — isolated to Next.js's server fetch handling specifically (the
+// identical query succeeds instantly via a plain script using the same
+// Supabase client construction, outside Next.js entirely). This reads as a
+// large-response-body bug in Next's bundled fetch/undici, not anything
+// wrong with the query, the data, or this app's own code — and not
+// something fixable at this layer. `SEARCH_NEARBY_ROW_LIMIT` keeps this
+// route's responses safely under the observed failure threshold, with real
+// margin. Same "explicit, known, honestly-reported limit" discipline
+// `queries.ts`'s own row-count-ceiling comment already documents — a
+// diver browsing a map does not need 500 pins in one response, and
+// `truncated` (already part of `ListSitesResult`) reports honestly when
+// this cap is hit rather than silently dropping rows.
+const SEARCH_NEARBY_ROW_LIMIT = 200;
+
 function parseCoordinateParam(raw: string | null, min: number, max: number): number | null {
   if (raw === null || raw.trim() === "") return null;
   const value = Number(raw);
@@ -154,13 +174,26 @@ export async function GET(request: NextRequest) {
 
   // --- Local read: always first, and the only thing that can populate ---
   // --- this response's `error` field. ---
-  const { sites: localSites, error: localError, truncated } = await listSitesInBounds(bounds);
+  const { sites: localSites, error: localError, truncated: localTruncated } = await listSitesInBounds({
+    ...bounds,
+    limit: SEARCH_NEARBY_ROW_LIMIT,
+  });
 
   if (localError) {
     logger.error("search_nearby.local_query_failed", { error: localError, lat, lng, radiusMiles });
-    return NextResponse.json({ sites: [], error: localError, searchedExternally: false }, { status: 200 });
+    return NextResponse.json({ sites: [], error: localError, searchedExternally: false, truncated: false }, { status: 200 });
   }
 
+  // Tracks whichever result set actually ends up in the response —
+  // `inRadius` gets reassigned below if the Overpass re-query succeeds, and
+  // `truncated` must describe *that* set, not the one this route ends up
+  // discarding. Found 2026-08-10 alongside `SEARCH_NEARBY_ROW_LIMIT`: this
+  // route computed truncation but never told the caller, which is exactly
+  // the silent-incomplete-list failure `queries.ts`'s own row-count-ceiling
+  // comment (T21.12) already names as a correctness bug, not a nitpick —
+  // more likely to actually bite now that a dense area routinely hits the
+  // new, smaller cap.
+  let truncated = localTruncated;
   if (truncated) {
     // Already logged inside listSitesInBounds; repeated here with the request
     // context that only this layer has, since a truncated result means the
@@ -225,9 +258,10 @@ export async function GET(request: NextRequest) {
         // imported. If this second read fails, fall back to the local data
         // already fetched above rather than losing it over an unrelated,
         // second failure.
-        const refreshed = await listSitesInBounds(bounds);
+        const refreshed = await listSitesInBounds({ ...bounds, limit: SEARCH_NEARBY_ROW_LIMIT });
         if (!refreshed.error) {
           inRadius = sortByDistanceWithinRadius(refreshed.sites, center, radiusMiles);
+          truncated = refreshed.truncated;
         } else {
           logger.warn("search_nearby.post_import_requery_failed", { error: refreshed.error });
         }
@@ -237,5 +271,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sites: inRadius, error: null, searchedExternally }, { status: 200 });
+  return NextResponse.json({ sites: inRadius, error: null, searchedExternally, truncated }, { status: 200 });
 }

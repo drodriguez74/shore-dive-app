@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeMapEmptyStateMessage, siteShoreAccessCategory } from "./dive-site-explorer";
+import { computeMapEmptyStateMessage, nextSearchStateFromResponse, siteShoreAccessCategory } from "./dive-site-explorer";
 import type { SiteMarker } from "@/lib/sites/types";
 
 function site(overrides: Partial<SiteMarker> = {}): SiteMarker {
@@ -143,5 +143,72 @@ describe("computeMapEmptyStateMessage — shore-access filter (2026-08-11)", () 
     const msg = computeMapEmptyStateMessage({ ...BASE, shoreAccessFilter: "accessible", searchedExternally: true });
     expect(msg).not.toMatch(/OpenStreetMap/);
     expect(msg).toMatch(/clearing filters/i);
+  });
+});
+
+describe("nextSearchStateFromResponse", () => {
+  // Found 2026-08-10 (founder-reported live bug): the map's pins vanished
+  // and the shore-access filter showed zero results, even though the
+  // catalogue genuinely has real sites — traced to /api/sites/search-nearby
+  // hitting a local DB query failure, which its own contract reports via a
+  // 200 response with `error` set and `sites: []` (never a non-200 — a
+  // transient DB hiccup shouldn't fail the whole request). The caller used
+  // to read only `sites`, so a real backend failure and "genuinely zero
+  // sites nearby" produced the identical `{status: "done", sites: []}"`.
+
+  it("treats a response with error set as a failure, not a legitimate empty result", () => {
+    const state = nextSearchStateFromResponse(
+      { sites: [], error: "TypeError: fetch failed", searchedExternally: false },
+      50,
+    );
+    expect(state.status).toBe("error");
+    expect(state.sites).toBeNull();
+  });
+
+  it("treats a response with error set and non-empty sites the same way — error always wins", () => {
+    // Defensive: the route's own contract says sites is [] whenever error
+    // is set, but the caller must not trust that invariant silently — an
+    // error means "don't trust this payload," regardless of its shape.
+    const state = nextSearchStateFromResponse(
+      { sites: [{ id: "x" } as never], error: "some failure", searchedExternally: false },
+      50,
+    );
+    expect(state.status).toBe("error");
+    expect(state.sites).toBeNull();
+  });
+
+  it("treats a genuinely empty result (no error) as a real done state, not an error", () => {
+    // The honest "you really do have zero sites in this radius" case must
+    // stay distinct from a failure — this is what lets
+    // computeMapEmptyStateMessage say something real instead of every
+    // empty result silently becoming a fallback-to-cache.
+    const state = nextSearchStateFromResponse({ sites: [], error: null, searchedExternally: true }, 50);
+    expect(state.status).toBe("done");
+    expect(state.sites).toEqual([]);
+    expect(state.searchedExternally).toBe(true);
+  });
+
+  it("passes real sites through unchanged on a genuine success", () => {
+    const sites = [{ id: "a" } as never, { id: "b" } as never];
+    const state = nextSearchStateFromResponse({ sites, error: null, searchedExternally: false }, 100);
+    expect(state).toEqual({ status: "done", sites, searchedExternally: false, radiusMiles: 100, truncated: false });
+  });
+
+  it("carries a true truncated flag through to the state", () => {
+    const state = nextSearchStateFromResponse(
+      { sites: [], error: null, searchedExternally: false, truncated: true },
+      50,
+    );
+    expect(state.truncated).toBe(true);
+  });
+
+  it("defaults truncated to false when the response omits it (older/mocked response shape)", () => {
+    const state = nextSearchStateFromResponse({ sites: [], error: null, searchedExternally: false }, 50);
+    expect(state.truncated).toBe(false);
+  });
+
+  it("tags the state with the radius it was searched at, matching the request that produced it", () => {
+    const state = nextSearchStateFromResponse({ sites: [], error: null, searchedExternally: false }, 250);
+    expect(state.radiusMiles).toBe(250);
   });
 });
