@@ -168,6 +168,49 @@ describe("classifyShoreAccess — Erojacks Dania (\"Dania Jacks\")", () => {
   });
 });
 
+describe("classifyShoreAccess — Singer Island Mitigation Site", () => {
+  it("classifies a real, corroborated mitigation reef found during the deep-research sweep", () => {
+    // Found 2026-08-10 while systematically researching sites geometrically
+    // close to real coastline but with no catalogued entry (the founder's
+    // "dig deep, use AI-mode search" request). Pura Vida Divers and
+    // Waterfront Properties both describe it as a diveable-from-shore
+    // mitigation reef off Singer Island, entered via Ocean Mall Beach.
+    // Real catalogued coordinates from `sites`.
+    const singerIslandMitigation = { latitude: 26.78567, longitude: -80.03067 };
+    const result = classifyShoreAccess(singerIslandMitigation);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("ocean-mall-singer-island");
+  });
+});
+
+describe("classifyShoreAccess — Kreusler Park Ephemeral Reef", () => {
+  it("classifies a real site with an official but weaker-evidence-tier corroboration", () => {
+    // Found 2026-08-10 during the deep-research sweep. No dive-shop source
+    // confirms recreational shore access, but Palm Beach County's own reef
+    // registry designates this "PB-59 Ephemeral Reef" — FDEP's technical
+    // term for shallow nearshore hardbottom — off a real guarded beach.
+    // Coordinates from the FWC-imported catalogue record.
+    const kreuslerReef = { latitude: 26.6177, longitude: -80.03345 };
+    const result = classifyShoreAccess(kreuslerReef);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("kreusler-park-palm-beach");
+  });
+});
+
+describe("classifyShoreAccess — U-LINK hybrid breakwater units", () => {
+  it("classifies a real University of Miami reef installation off North Beach Oceanside Park", () => {
+    // Found 2026-08-10 during the deep-research sweep. A real UM-led
+    // hybrid-reef installation, part of the same ReefLine project as the
+    // already-confirmed south-beach-5th-st entry, but without a dedicated
+    // dive-shop writeup for this specific segment — documented as a
+    // weaker-evidence-tier entry, same discipline as Kreusler Park above.
+    const ulink = { latitude: 25.866638, longitude: -80.116719 };
+    const result = classifyShoreAccess(ulink);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("north-beach-oceanside-park-miami-beach");
+  });
+});
+
 describe("classifyShoreAccess — S.S. Inchulva / Delray Wreck", () => {
   it("classifies a real, well-documented shore dive that was previously unreachable", () => {
     // Founder-reported (2026-08-11): a real shore dive, independently
