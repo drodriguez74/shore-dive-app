@@ -3,6 +3,7 @@ import { errorMessage } from "@/lib/error-message";
 import { logger } from "./logger";
 import type {
   HazardReport,
+  ResearchSource,
   Site,
   SiteMarker,
   SiteProvenance,
@@ -65,6 +66,33 @@ function toNullableNumber(value: number | string | null | undefined): number | n
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Narrows `research_sources`'s untyped `unknown` (see `RawSiteRow`) into
+ * `ResearchSource[] | null`. Defensive in the same direction as
+ * `toNullableNumber`: anything that isn't a well-formed array of
+ * `{title, url}` objects becomes `null` (never a partially-broken array
+ * that would render a citation with a missing link), since this codebase's
+ * own writer (Task 22's research-summary script) is the only intended
+ * source of this column and a malformed value means something upstream
+ * already went wrong — degrading to "no sources shown" is safer than
+ * rendering whatever shape actually arrived.
+ */
+function toResearchSources(value: unknown): ResearchSource[] | null {
+  if (!Array.isArray(value)) return null;
+  const sources: ResearchSource[] = [];
+  for (const entry of value) {
+    if (
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as Record<string, unknown>).title === "string" &&
+      typeof (entry as Record<string, unknown>).url === "string"
+    ) {
+      sources.push({ title: (entry as { title: string }).title, url: (entry as { url: string }).url });
+    }
+  }
+  return sources.length > 0 ? sources : null;
+}
+
 interface RawSiteRow {
   id: string;
   name: string;
@@ -84,6 +112,15 @@ interface RawSiteRow {
   shore_access?: ShoreAccessConfidence | null;
   shore_entry_id?: string | null;
   shore_distance_yards?: number | string | null;
+  // `undefined` covers a row read before `0013_sites_research_summary.sql`
+  // has been applied, same as the 0012 columns above.
+  research_summary?: string | null;
+  // PostgREST returns `jsonb` already parsed as JSON, not a string — but
+  // this is still untyped over the wire, so it's `unknown` here and
+  // narrowed by `toResearchSources` below rather than trusted as
+  // `ResearchSource[]` straight off the response.
+  research_sources?: unknown;
+  research_summary_updated_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -142,6 +179,7 @@ const SITE_MARKER_COLUMNS =
 const SITE_DETAIL_COLUMNS =
   "id, name, description, latitude, longitude, provenance, legal_access_status, site_type, " +
   "depth_min_ft, depth_max_ft, shore_access, shore_entry_id, shore_distance_yards, " +
+  "research_summary, research_sources, research_summary_updated_at, " +
   "created_by, created_at, updated_at";
 
 /** The full `hazard_reports` column list — every field of `HazardReport` in
@@ -226,6 +264,9 @@ function normalizeSite(row: RawSiteRow): Site {
     shore_access: row.shore_access ?? null,
     shore_entry_id: row.shore_entry_id ?? null,
     shore_distance_yards: toNullableNumber(row.shore_distance_yards),
+    research_summary: row.research_summary ?? null,
+    research_sources: toResearchSources(row.research_sources),
+    research_summary_updated_at: row.research_summary_updated_at ?? null,
   };
 }
 

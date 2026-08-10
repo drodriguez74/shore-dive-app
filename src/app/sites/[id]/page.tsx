@@ -10,6 +10,7 @@ import { PretripChecklist } from "@/components/pretrip-checklist";
 import { SiteLocationMap } from "@/components/site-location-map";
 import { SiteDiveProfile } from "@/components/site-dive-profile";
 import { SiteSources } from "@/components/site-sources";
+import { SiteResearchSummary } from "@/components/site-research-summary";
 import type { SiteMarker } from "@/lib/sites/types";
 import { AddToDivePlanForm } from "./add-to-dive-plan-form";
 
@@ -187,6 +188,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             ))}
         </section>
       )}
+
+      <SiteResearchSummary
+        summary={site.research_summary ?? null}
+        sources={site.research_sources ?? null}
+        updatedAt={site.research_summary_updated_at ?? null}
+      />
 
       <SiteDiveProfile site={site} />
 

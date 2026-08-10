@@ -638,6 +638,9 @@ describe("getSiteWithHazards", () => {
           "longitude",
           "name",
           "provenance",
+          "research_sources",
+          "research_summary",
+          "research_summary_updated_at",
           "shore_access",
           "shore_distance_yards",
           "shore_entry_id",
@@ -829,6 +832,57 @@ describe("getSiteWithHazards", () => {
         shore_entry_id: null,
         shore_distance_yards: null,
       });
+    });
+
+    it("returns a well-formed research summary and its sources, coerced from the freshness timestamp", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            research_summary: "A popular, well-documented shore dive entered just north of the pier.",
+            research_sources: [{ title: "Force-E Scuba Centers", url: "https://www.force-e.com/example" }],
+            research_summary_updated_at: "2026-08-10T12:00:00.000Z",
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site).toMatchObject({
+        research_summary: "A popular, well-documented shore dive entered just north of the pier.",
+        research_sources: [{ title: "Force-E Scuba Centers", url: "https://www.force-e.com/example" }],
+        research_summary_updated_at: "2026-08-10T12:00:00.000Z",
+      });
+    });
+
+    it("normalizes an unresearched site's summary fields to explicit nulls", async () => {
+      useClient({ sites: { data: siteDetailRow(), error: null } });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site).toMatchObject({
+        research_summary: null,
+        research_sources: null,
+        research_summary_updated_at: null,
+      });
+    });
+
+    it("degrades a malformed research_sources value to null rather than rendering a broken shape", async () => {
+      useClient({
+        sites: {
+          data: siteDetailRow({
+            research_summary: "Some summary text.",
+            // Not an array of {title, url} — a writer bug, or a row from
+            // before this column's real shape was settled.
+            research_sources: [{ title: "Missing a URL" }, "just a string", { url: "https://example.com" }],
+          }),
+          error: null,
+        },
+      });
+
+      const result = await getSiteWithHazards("site-1");
+
+      expect(result.site?.research_sources).toBeNull();
     });
 
     it("distinguishes 'no such site' (site: null, error: null) from a failure", async () => {

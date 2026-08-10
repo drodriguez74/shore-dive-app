@@ -57,6 +57,15 @@ export type SiteType =
  */
 export type { ShoreAccessConfidence };
 
+/** One citation backing a `Site.research_summary` (`0013_sites_research_summary.sql`,
+ * Task 22) — `title` is the source's own name (a dive shop, a park
+ * authority, a citizen-science chapter), not a generic "source 1" label, so
+ * a diver can judge who's actually vouching for the claim. */
+export interface ResearchSource {
+  title: string;
+  url: string;
+}
+
 /** One row of `sites`, coordinates coerced to `number` (PostgREST can
  * return Postgres `numeric` columns as JSON strings to avoid float
  * precision loss — see `src/lib/sites/queries.ts`'s `toNumber` helper,
@@ -106,6 +115,24 @@ export interface Site {
    * `"unlikely"` rows too, when a nearest entry exists — that is exactly the
    * case where "why was this ruled out" is worth answering. */
   shore_distance_yards?: number | null;
+  /** Original-synthesis web-research summary (`0013_sites_research_summary.sql`,
+   * Task 22) — distinct from `description`, which is verbatim/near-verbatim
+   * from the upstream catalogue. `null` means no research pass has covered
+   * this site yet (the overwhelming majority of rows in v1 scope — see
+   * `TASKS.md` T22). Must always render with an explicit "AI-assisted web
+   * research, not independently verified" disclosure, same standing rule as
+   * `shore_access`. */
+  research_summary?: string | null;
+  /** Citations backing `research_summary`, written and read as a unit with
+   * it — `null` in lockstep with a `null` summary. See `ResearchSource`. */
+  research_sources?: ResearchSource[] | null;
+  /** When `research_summary`/`research_sources` were last written by a
+   * research pass — a freshness signal distinct from the generic
+   * `updated_at` (which bumps on any column change, including an unrelated
+   * `shore_access` fix). Render as "per research as of [date]", never a
+   * bare/binary "researched" badge — same discipline as offline-cache
+   * freshness. `null` means not yet researched. */
+  research_summary_updated_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

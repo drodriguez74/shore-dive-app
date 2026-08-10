@@ -237,21 +237,24 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
     name: "North Beach Oceanside Park, Miami Beach",
     // Found during the founder-requested deep-research sweep (2026-08-10).
     // Real University of Miami-led hybrid reef/coral-restoration
-    // installation ("U-LINK hybrid breakwater units"), deployed ~1,000 ft
-    // offshore of this park at ~14 ft depth (UM News, 2023). Part of the
-    // broader ReefLine project — the same project whose South Beach segment
+    // installation ("U-LINK hybrid breakwater units"), part of the broader
+    // ReefLine project — the same project whose South Beach segment
     // ("Traffic Jam"/Concrete Coral) is already catalogued at
-    // `south-beach-5th-st` and independently confirmed shore-diveable.
-    // ReefLine's own materials describe access as "swimming, diving,
-    // snorkelling, kayaking or...paddleboards" generally, but no
-    // dive-shop/dive-report source specifically names this North Beach
-    // segment as a shore dive the way the South Beach segment is — weaker
-    // tier than most entries here, documented honestly. Placed at the real
-    // Atlantic coastline (OSM `natural=coastline`, easternmost way) at the
-    // park's address (Collins Ave, 79th-87th St), not a geocoded point.
+    // `south-beach-5th-st`. Upgraded from an initial weaker-evidence tier
+    // (UM News's own installation announcement, ~1,000 ft offshore, ~14 ft,
+    // but no dedicated dive-site source) once the founder found
+    // divenavigator.com's dedicated listing, which states plainly "Entry
+    // Type: Boat & Shore", ~750 ft (231 m) offshore, 14 ft — a real
+    // dive-site directory now directly confirms shore access, not just an
+    // inferred pattern from a sibling site. The two distance figures
+    // (1,000 ft vs 750 ft) don't fully agree, noted rather than silently
+    // picked — both are well inside this module's threshold either way.
+    // Placed at the real Atlantic coastline (OSM `natural=coastline`,
+    // easternmost way) at the park's address (Collins Ave, 79th-87th St),
+    // not a geocoded point.
     latitude: 25.8652239,
     longitude: -80.1189714,
-    note: "Street parking, municipal lot at 79th St. U-LINK hybrid reef installation ~1,000 ft offshore, ~14 ft — part of the ReefLine project.",
+    note: "Street parking, municipal lot at 79th St. U-LINK hybrid reef installation ~750-1,000 ft offshore, ~14 ft — part of the ReefLine project; DiveNavigator lists it \"Boat & Shore\".",
   },
   { id: "red-reef-boca", name: "Red Reef Park, Boca Raton", latitude: 26.36467, longitude: -80.06953 },
   {

@@ -199,11 +199,11 @@ describe("classifyShoreAccess — Kreusler Park Ephemeral Reef", () => {
 
 describe("classifyShoreAccess — U-LINK hybrid breakwater units", () => {
   it("classifies a real University of Miami reef installation off North Beach Oceanside Park", () => {
-    // Found 2026-08-10 during the deep-research sweep. A real UM-led
-    // hybrid-reef installation, part of the same ReefLine project as the
-    // already-confirmed south-beach-5th-st entry, but without a dedicated
-    // dive-shop writeup for this specific segment — documented as a
-    // weaker-evidence-tier entry, same discipline as Kreusler Park above.
+    // Found 2026-08-10 during the deep-research sweep, then upgraded from
+    // an initial weaker-evidence tier once the founder found
+    // divenavigator.com's dedicated listing, which states plainly "Entry
+    // Type: Boat & Shore" — a real dive-site directory, not just an
+    // inferred pattern from the sibling south-beach-5th-st entry.
     const ulink = { latitude: 25.866638, longitude: -80.116719 };
     const result = classifyShoreAccess(ulink);
     expect(result.isShoreAccessible).toBe(true);
