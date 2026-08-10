@@ -132,8 +132,32 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
   {
     id: "mizell-johnson-dania",
     name: "Dr. Von D. Mizell-Eula Johnson State Park, Dania Beach",
-    latitude: 26.0523,
-    longitude: -80.14367,
+    // Corrected 2026-08-10: the original coordinate (26.0523, -80.14367) was
+    // ~1300 yd (2 mi across, on a barrier peninsula ~0.4 mi wide) west of the
+    // park's actual Atlantic beach — the same class of error as the LBTS
+    // Intracoastal-vs-Atlantic mistake this module's header already
+    // documents, not a one-off. It silently pushed every real site near this
+    // park's coastline out of shore-dive range, discovered only because one
+    // of them (Perry Street Rockpile) was independently reported and
+    // verified as a documented shore dive. Corrected to the real Atlantic
+    // coastline (OSM `natural=coastline`, easternmost way) at this latitude.
+    latitude: 26.0531,
+    longitude: -80.1119,
+  },
+  {
+    id: "perry-street-dania",
+    name: "Perry Street Beach, Dania Beach",
+    // Founder-reported (2026-08-10), corroborated by two independent
+    // sources: diverarchives.com confirms the artificial reef itself
+    // ("40000 tons" of limestone boulders, 18 ft max depth, matching the
+    // catalogued site), and scubastar.com (a real dive-tour operator)
+    // states plainly "Perry Street Rock Pile begins 600 feet [200 yd] from
+    // the shore" and names "Perry St. Beach" as the shore entry, 12-20 ft.
+    // Placed at the real Atlantic coastline (OSM `natural=coastline`,
+    // easternmost way) at the foot of Perry Street, not a geocoded address.
+    latitude: 26.0473,
+    longitude: -80.11239,
+    note: "Foot of Perry Street. Entry for the Perry Street Rockpile artificial reef, ~200 yd out, 12-20 ft.",
   },
   { id: "red-reef-boca", name: "Red Reef Park, Boca Raton", latitude: 26.36467, longitude: -80.06953 },
   {
@@ -167,6 +191,57 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
     name: "Hollywood North Beach Park, Hollywood",
     latitude: 26.01998,
     longitude: -80.1819,
+  },
+  {
+    id: "delray-municipal-beach",
+    name: "Delray Municipal Beach (south end), Delray Beach",
+    // Founder-reported gap (2026-08-11): the S.S. Inchulva / Delray Wreck
+    // (a real, well-known shore dive — independently confirmed the founder
+    // asked Gemini, which said yes) was classified `unlikely` because our
+    // nearest catalogued entry, Red Reef Park in Boca Raton, is 10,913 yd
+    // (6.2 mi) away — the correct "under-classify, don't guess" outcome
+    // `shore-access.ts`'s own header describes, not a computation bug: we
+    // simply had no entry catalogued for this stretch of coast.
+    //
+    // Two independent sources agree on ~150 yd / 15-25 ft: the wreck's own
+    // OSM-sourced description ("rests... in 25 feet of water about 150
+    // yards offshore the south end of Delray's municipal beach") and web
+    // research citing "150 yards from shore in 15 to 25 feet of water...
+    // directly off the beach from the Seagate Beach Club." A third,
+    // independently measured figure — the real Atlantic coastline (not
+    // Mapbox's geocoded "Seagate Beach Club" business address, which lands
+    // inland of the actual beach point) at the wreck's own latitude — put
+    // it at 258 yd, the coordinate used below. All three land the same
+    // conclusion (comfortably inside `SHORE_DIVE_EASY_MILES`) despite not
+    // agreeing to the yard.
+    latitude: 26.45227,
+    longitude: -80.05817,
+    note: "South end of Delray's municipal beach, near Seagate. Entry for the S.S. Inchulva / Delray Wreck, ~150-260 yd out, ~15-25 ft.",
+  },
+  {
+    id: "ocean-inlet-park-boynton",
+    name: "Ocean Inlet Park, Boynton Beach",
+    // Found during the founder-requested full-catalogue audit that added
+    // Delray (2026-08-11): four FWC-imported "Boynton Inlet"-named sites
+    // were all `unlikely` with no nearby entry, which read as a plausible
+    // second instance of the exact gap Delray was. Research confirmed a
+    // real, documented, publicly-accessible shore dive/snorkel spot here —
+    // "a shore accessible salt water dive site... the jetty stretches
+    // roughly 100 yards into the Atlantic... reef starting in and around
+    // the park's jetty... maximum depth 11-15 ft" — that we had never
+    // catalogued. Coordinate is the real Atlantic shoreline (not the
+    // geocoded street address, which lands inland of the beach) at the
+    // park's own latitude, same "measure the actual coastline, don't trust
+    // the geocode" discipline every entry in this file follows.
+    //
+    // Real effect on the live catalogue: 3 of the 4 "Boynton Inlet" sites
+    // move from `unlikely` to shore-accessible (263-553 yd out); the fourth,
+    // "Boynton Inlet Step Reef North" at 1425 yd, correctly stays boat-only —
+    // adding this entry doesn't manufacture shore access, it just measures
+    // what was already there.
+    latitude: 26.54599,
+    longitude: -80.04183,
+    note: "Jetty extends ~100 yd into the Atlantic; nearshore reef/ledge around it, ~11-15 ft.",
   },
 ];
 

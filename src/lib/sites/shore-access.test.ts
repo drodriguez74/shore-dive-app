@@ -149,3 +149,67 @@ describe("classifyShoreAccess — South Beach / ReefLine 'Traffic Jam'", () => {
     expect(result.nearestEntry?.id).toBe("south-beach-5th-st");
   });
 });
+
+describe("classifyShoreAccess — S.S. Inchulva / Delray Wreck", () => {
+  it("classifies a real, well-documented shore dive that was previously unreachable", () => {
+    // Founder-reported (2026-08-11): a real shore dive, independently
+    // confirmed both by the founder's own research and this module's own
+    // web research (two sources agreeing on ~150 yd / 15-25 ft), was
+    // classified `unlikely` because the nearest catalogued entry at the
+    // time (Red Reef Park, Boca Raton) was 10,913 yd (6.2 mi) away — the
+    // correct "under-classify, don't guess" outcome for a genuine coverage
+    // gap, not a bug. Real catalogued coordinates from `sites`.
+    const delrayWreck = { latitude: 26.453632, longitude: -80.056344 };
+    const result = classifyShoreAccess(delrayWreck);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("delray-municipal-beach");
+    expect(result.confidence).toBe("likely");
+  });
+});
+
+describe("classifyShoreAccess — Ocean Inlet Park, Boynton Beach", () => {
+  it("classifies real 'Boynton Inlet' sites close to the jetty as shore-accessible", () => {
+    // Found during the full-catalogue audit that added Delray: three real
+    // FWC-imported sites near Ocean Inlet Park's jetty, previously
+    // `unlikely` with no nearby entry catalogued.
+    const mitigationSite = { latitude: 26.54383, longitude: -80.041833 };
+    const result = classifyShoreAccess(mitigationSite);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("ocean-inlet-park-boynton");
+  });
+
+  it("correctly leaves a genuinely-farther site in the same named group as boat-access", () => {
+    // "Boynton Inlet Step Reef North" — real coordinates, ~1425 yd from the
+    // jetty. Adding a real entry must not manufacture shore access for
+    // everything nearby that shares a name prefix; distance still governs.
+    const stepReefNorth = { latitude: 26.55625, longitude: -80.0355 };
+    const result = classifyShoreAccess(stepReefNorth);
+    expect(result.isShoreAccessible).toBe(false);
+  });
+});
+
+describe("classifyShoreAccess — Perry Street Rockpile, Dania Beach", () => {
+  it("classifies a real, documented shore dive near a badly mis-geocoded existing entry", () => {
+    // Founder-reported (2026-08-10), independently confirmed by two sources:
+    // diverarchives.com (the reef itself) and scubastar.com ("begins 600
+    // feet [200 yd] from the shore", entry "Perry St. Beach"). The site was
+    // `unlikely` at 3546.5 yd purely because the nearest catalogued entry
+    // (`mizell-johnson-dania`) was itself ~2 mi mis-located on the
+    // Intracoastal side of the peninsula — the same bug class as the LBTS
+    // Atlantic-vs-Intracoastal mistake this module's header documents. Real
+    // catalogued coordinates from `sites`.
+    const perryStreetRockpile = { latitude: 26.047315, longitude: -80.111686 };
+    const result = classifyShoreAccess(perryStreetRockpile);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("perry-street-dania");
+  });
+
+  it("does not manufacture shore access for genuinely offshore Dania artificial reefs", () => {
+    // "Tenneco Towers Deep" — a real, deep artificial reef in the same
+    // catalogue cluster, ~2 mi out. Correcting the mis-located Mizell entry
+    // must not sweep in sites that are actually far offshore.
+    const tennecoTowersDeep = { latitude: 25.9815, longitude: -80.079967 };
+    const result = classifyShoreAccess(tennecoTowersDeep);
+    expect(result.isShoreAccessible).toBe(false);
+  });
+});
