@@ -172,6 +172,27 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
     longitude: -80.11239,
     note: "Foot of Perry Street. Entry for the Perry Street Rockpile artificial reef, ~200 yd out, 12-20 ft.",
   },
+  {
+    id: "dania-pier-north",
+    name: "North of Dania Beach Pier, Dania Beach",
+    // Founder-reported (2026-08-10), asking specifically about "Erojacks
+    // Dania" (the "Dania Jacks") after a Google AI Overview described it as
+    // a well-known, popular shore dive. Independently corroborated by two
+    // real dive-industry sources, not just the AI summary: Force-E Scuba
+    // Centers ("just north of the Dania Beach Pier... stacked and run from
+    // 100 yards to the first reef line... 10-25 ft") and Project Baseline
+    // Gulfstream, a citizen-science diving chapter ("a few hundred yards
+    // North of Dania pier... stacked and running from about 100 yards
+    // offshore to the first reef line"). Neither `mizell-johnson-dania`
+    // nor `perry-street-dania` covers this — both are ~0.3-1 mi further
+    // south than the real coastline point directly across from the jack
+    // field. Placed at the real Atlantic coastline (OSM `natural=coastline`,
+    // easternmost way) at the field's own latitude, not the pier structure
+    // itself or a geocoded address.
+    latitude: 26.06269,
+    longitude: -80.1113,
+    note: 'The "Erojacks"/"Dania Jacks" artificial reef begins ~100 yd out and runs to the first reef line, 10-25 ft. Inside Dr. Von D. Mizell-Eula Johnson State Park — no spearfishing or lobstering.',
+  },
   { id: "red-reef-boca", name: "Red Reef Park, Boca Raton", latitude: 26.36467, longitude: -80.06953 },
   {
     id: "south-beach-5th-st",

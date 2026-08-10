@@ -150,6 +150,24 @@ describe("classifyShoreAccess — South Beach / ReefLine 'Traffic Jam'", () => {
   });
 });
 
+describe("classifyShoreAccess — Erojacks Dania (\"Dania Jacks\")", () => {
+  it("classifies a real, popular shore dive that neither existing Dania-area entry reaches", () => {
+    // Founder-reported (2026-08-10), corroborated by Force-E Scuba Centers
+    // and Project Baseline Gulfstream (a citizen-science diving chapter):
+    // both describe it as a well-known shore dive starting ~100 yd out,
+    // "just north of the Dania Beach Pier." Real catalogued coordinates
+    // from `sites` — the nearest real Atlantic coastline is 445 yd away,
+    // but both mizell-johnson-dania and perry-street-dania sit far enough
+    // south (~0.3-1 mi) that neither reaches it, hence the dedicated
+    // dania-pier-north entry.
+    const erojacksDania = { latitude: 26.0623, longitude: -80.10725 };
+    const result = classifyShoreAccess(erojacksDania);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("dania-pier-north");
+    expect(result.confidence).toBe("marginal");
+  });
+});
+
 describe("classifyShoreAccess — S.S. Inchulva / Delray Wreck", () => {
   it("classifies a real, well-documented shore dive that was previously unreachable", () => {
     // Founder-reported (2026-08-11): a real shore dive, independently
