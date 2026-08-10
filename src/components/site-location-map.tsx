@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Map, { Layer, NavigationControl, Source, type MapRef } from "react-map-gl/mapbox";
+import Map, { Layer, Marker, NavigationControl, Source, type MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { legalAccessLabel } from "@/components/legal-access-badge";
+import { formatShoreDistance } from "@/components/site-dive-profile";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/sites/logger";
+import { classifyShoreAccess, type ShoreEntryPoint } from "@/lib/sites/shore-access";
+import type { LatLng } from "@/lib/sites/distance";
 import {
   drawPinIcon,
   legalGlyphTier,
@@ -79,6 +82,8 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 const SITE_LOCATION_SOURCE_ID = "site-location";
 const SITE_LOCATION_LAYER_ID = "site-location-layer";
+const SHORE_ENTRY_LINE_SOURCE_ID = "shore-entry-line";
+const SHORE_ENTRY_LINE_LAYER_ID = "shore-entry-line-layer";
 
 /**
  * Close enough to read the shoreline, the road behind it and any obvious entry
@@ -86,6 +91,74 @@ const SITE_LOCATION_LAYER_ID = "site-location-layer";
  * how a diver orients) drops out of frame.
  */
 export const DEFAULT_SITE_LOCATION_ZOOM = 14;
+
+/**
+ * The line, marker positions, and camera bounds for the "swim from here"
+ * visual (founder ask, 2026-08-11: "a hash line from the shore to the site").
+ * A pure function of two points — no Mapbox/React dependency — so it's
+ * directly testable, unlike the actual line/marker rendering below, which
+ * needs a real WebGL context this test environment doesn't have (see this
+ * file's test suite's own note on that limit).
+ *
+ * `bounds` is deliberately the raw two-point envelope, not pre-padded —
+ * `map.fitBounds()`'s own `padding` option (in screen pixels) is the right
+ * place for visual breathing room, and baking padding into the *geographic*
+ * bounds here would double up with it inconsistently depending on zoom.
+ *
+ * `midpoint` is a flat lat/lng average, not a great-circle midpoint — correct
+ * to within inches at the scale this draws (a few hundred yards, at most
+ * `SHORE_DIVE_MAX_MILES`), and not worth the extra spherical-trig code this
+ * component would otherwise need to import just to place a label.
+ */
+export interface ShoreEntryLine {
+  lineGeoJSON: GeoJSON.Feature<GeoJSON.LineString>;
+  entryPoint: LatLng;
+  midpoint: LatLng;
+  /** `[[west, south], [east, north]]` — the shape `mapboxgl.LngLatBounds` /
+   * react-map-gl's `fitBounds` accepts. */
+  bounds: [[number, number], [number, number]];
+}
+
+export function buildShoreEntryLine(entry: LatLng, site: LatLng): ShoreEntryLine {
+  return {
+    lineGeoJSON: {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [entry.longitude, entry.latitude],
+          [site.longitude, site.latitude],
+        ],
+      },
+    },
+    entryPoint: { latitude: entry.latitude, longitude: entry.longitude },
+    midpoint: {
+      latitude: (entry.latitude + site.latitude) / 2,
+      longitude: (entry.longitude + site.longitude) / 2,
+    },
+    bounds: [
+      [Math.min(entry.longitude, site.longitude), Math.min(entry.latitude, site.latitude)],
+      [Math.max(entry.longitude, site.longitude), Math.max(entry.latitude, site.latitude)],
+    ],
+  };
+}
+
+/**
+ * Sr-only sentence for the line — same "a symbol/line layer has no DOM node"
+ * gap `siteLocationDescription` exists to cover for the pin, extended to this
+ * new visual. Deliberately hedged the same way `shore-access.ts` requires
+ * everywhere else ("plausibly", never "confirmed") — this text describes the
+ * same measurement the line draws, not a stronger claim than the line itself
+ * is allowed to make.
+ */
+export function shoreEntryLineDescription(entry: ShoreEntryPoint, distanceMiles: number): string {
+  return (
+    `Dashed line: a plausible shore-entry swim from ${entry.name}, about ` +
+    `${formatShoreDistance(distanceMiles)} away. Distance measurement only — not a confirmed or ` +
+    `recommended route; verify conditions locally.`
+  );
+}
 
 /** Guards the `icon-image` lookup against a `site_type` the icon system
  * doesn't know about — an unregistered image renders as *nothing*, i.e. a dive
@@ -124,6 +197,58 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [iconReady, setIconReady] = useState(false);
   const mapRef = useRef<MapRef | null>(null);
+  // Guards the fitBounds camera move below to firing exactly once per mount
+  // — `entryLine` is a fresh object from `useMemo` but its *contents* only
+  // change if the site's own coordinates change (which doesn't happen without
+  // a full remount), so without this guard there's no real re-fit risk, but
+  // it documents the one-shot intent explicitly rather than relying on that
+  // being incidentally true. Mirrors `site-map.tsx`'s `hasPositionedRef`.
+  const hasFitEntryLineRef = useRef(false);
+
+  // Shore access recomputed from the site's own coordinates, not trusted from
+  // a stored column — same reasoning `site-dive-profile.tsx` already
+  // documents for doing this itself: `0012`'s `shore_access` column may not
+  // be selected/populated for every caller, and re-deriving from lat/lng is
+  // cheap, always-correct, and guarantees this map can never disagree with
+  // what the page's own shore-access section says about the same site.
+  const shoreAccess = useMemo(
+    () => classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude }),
+    [site.latitude, site.longitude],
+  );
+
+  // Only sites `shore-access.ts` itself calls shore-accessible get a line —
+  // never drawn for `unlikely` sites, where `nearestEntry` is populated but
+  // may be many miles away and would be actively misleading rendered as a
+  // "swim from here" line. See `buildShoreEntryLine`'s own header for what
+  // the line, midpoint and bounds actually are.
+  const entryLine = useMemo(() => {
+    if (!shoreAccess.isShoreAccessible || !shoreAccess.nearestEntry) return null;
+    return buildShoreEntryLine(shoreAccess.nearestEntry, site);
+  }, [shoreAccess, site]);
+
+  // One-shot camera fit so both the site and its shore entry are actually in
+  // frame — the plain `initialViewState` below (site-centered, fixed zoom) is
+  // read only once at mount by Mapbox and has no way to know an entry point
+  // up to `SHORE_DIVE_MAX_MILES` away needs to fit too, so a marginal-tier
+  // site could otherwise render a line running straight off the edge of the
+  // map. `padding` is screen pixels, not degrees, so it stays sensible across
+  // the different `initialViewState` zooms callers can pass.
+  useEffect(() => {
+    if (!isMapLoaded || !entryLine || hasFitEntryLineRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    hasFitEntryLineRef.current = true;
+    try {
+      map.fitBounds(entryLine.bounds, { padding: 56, duration: 0, maxZoom: 16 });
+    } catch (error) {
+      // Never worth taking the map down over a camera-framing nicety — the
+      // pin and the line still render at whatever the default view was.
+      logger.error("site_location_map.fit_entry_line_bounds_failed", {
+        siteId: site.id,
+        message: errorMessage(error),
+      });
+    }
+  }, [isMapLoaded, entryLine, site.id]);
 
   const spec = useMemo<PinIconSpec>(
     () => ({
@@ -231,6 +356,29 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
         >
           <NavigationControl position="top-right" showCompass={false} />
 
+          {/* Drawn before the pin layer so the dashed line sits under the
+              site marker rather than over it at their one point of overlap.
+              Founder ask (2026-08-11): "a hash line from the shore to the
+              site" — sky-600 to match this app's one already-established
+              primary/informational hue (DESIGN_SYSTEM.md), never the amber/
+              rose semantic colors reserved for caution/danger, since this is
+              a plain distance measurement, not a warning. */}
+          {entryLine && (
+            <Source id={SHORE_ENTRY_LINE_SOURCE_ID} type="geojson" data={entryLine.lineGeoJSON}>
+              <Layer
+                id={SHORE_ENTRY_LINE_LAYER_ID}
+                type="line"
+                layout={{ "line-cap": "round" }}
+                paint={{
+                  "line-color": "#0284c7",
+                  "line-width": 2.5,
+                  "line-dasharray": [2, 2],
+                  "line-opacity": 0.85,
+                }}
+              />
+            </Source>
+          )}
+
           {iconReady && (
             <Source id={SITE_LOCATION_SOURCE_ID} type="geojson" data={featureCollection}>
               <Layer
@@ -246,6 +394,34 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
               />
             </Source>
           )}
+
+          {/* The line's other endpoint — a small, deliberately plain circle,
+              not a second pin-icon system. `pin-icons.ts`'s icon language is
+              reserved for actual dive sites; this marks a shore *entry*, a
+              different kind of thing, and should read as visually distinct
+              at a glance, not as a second, lesser dive site. */}
+          {entryLine && (
+            <Marker longitude={entryLine.entryPoint.longitude} latitude={entryLine.entryPoint.latitude}>
+              <div
+                aria-hidden="true"
+                className="h-3 w-3 rounded-full border-2 border-white bg-sky-600 shadow-md dark:border-depth-1"
+              />
+            </Marker>
+          )}
+
+          {/* The distance itself, in the unit a diver actually thinks in —
+              same `formatShoreDistance` the shore-access prose section uses,
+              so the map and the text can never disagree about the number. */}
+          {entryLine && shoreAccess.distanceMiles !== null && (
+            <Marker longitude={entryLine.midpoint.longitude} latitude={entryLine.midpoint.latitude}>
+              <div
+                aria-hidden="true"
+                className="whitespace-nowrap rounded-full border border-sky-700/30 bg-white/95 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 shadow-sm dark:border-sky-400/30 dark:bg-depth-1/95 dark:text-sky-300"
+              >
+                {formatShoreDistance(shoreAccess.distanceMiles)}
+              </div>
+            </Marker>
+          )}
         </Map>
       </div>
 
@@ -254,6 +430,9 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
           encodes visually. Same gap, same remedy as `site-map.tsx`'s
           visually-hidden site list. */}
       <p className="sr-only">{siteLocationDescription(site)}</p>
+      {entryLine && shoreAccess.nearestEntry && shoreAccess.distanceMiles !== null && (
+        <p className="sr-only">{shoreEntryLineDescription(shoreAccess.nearestEntry, shoreAccess.distanceMiles)}</p>
+      )}
     </div>
   );
 }

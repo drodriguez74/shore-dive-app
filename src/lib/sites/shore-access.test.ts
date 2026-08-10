@@ -149,3 +149,124 @@ describe("classifyShoreAccess — South Beach / ReefLine 'Traffic Jam'", () => {
     expect(result.nearestEntry?.id).toBe("south-beach-5th-st");
   });
 });
+
+describe("classifyShoreAccess — S.S. Inchulva / Delray Wreck", () => {
+  it("classifies a real, well-documented shore dive that was previously unreachable", () => {
+    // Founder-reported (2026-08-11): a real shore dive, independently
+    // confirmed both by the founder's own research and this module's own
+    // web research (two sources agreeing on ~150 yd / 15-25 ft), was
+    // classified `unlikely` because the nearest catalogued entry at the
+    // time (Red Reef Park, Boca Raton) was 10,913 yd (6.2 mi) away — the
+    // correct "under-classify, don't guess" outcome for a genuine coverage
+    // gap, not a bug. Real catalogued coordinates from `sites`.
+    const delrayWreck = { latitude: 26.453632, longitude: -80.056344 };
+    const result = classifyShoreAccess(delrayWreck);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("delray-municipal-beach");
+    expect(result.confidence).toBe("likely");
+  });
+});
+
+describe("classifyShoreAccess — Ocean Inlet Park, Boynton Beach", () => {
+  it("classifies real 'Boynton Inlet' sites close to the jetty as shore-accessible", () => {
+    // Found during the full-catalogue audit that added Delray: three real
+    // FWC-imported sites near Ocean Inlet Park's jetty, previously
+    // `unlikely` with no nearby entry catalogued.
+    const mitigationSite = { latitude: 26.54383, longitude: -80.041833 };
+    const result = classifyShoreAccess(mitigationSite);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("ocean-inlet-park-boynton");
+  });
+
+  it("correctly leaves a genuinely-farther site in the same named group as boat-access", () => {
+    // "Boynton Inlet Step Reef North" — real coordinates, ~1425 yd from the
+    // jetty. Adding a real entry must not manufacture shore access for
+    // everything nearby that shares a name prefix; distance still governs.
+    const stepReefNorth = { latitude: 26.55625, longitude: -80.0355 };
+    const result = classifyShoreAccess(stepReefNorth);
+    expect(result.isShoreAccessible).toBe(false);
+  });
+});
+
+describe("classifyShoreAccess — Perry Street Rockpile, Dania Beach", () => {
+  it("classifies a real, documented shore dive near a badly mis-geocoded existing entry", () => {
+    // Founder-reported (2026-08-10), independently confirmed by two sources:
+    // diverarchives.com (the reef itself) and scubastar.com ("begins 600
+    // feet [200 yd] from the shore", entry "Perry St. Beach"). The site was
+    // `unlikely` at 3546.5 yd purely because the nearest catalogued entry
+    // (`mizell-johnson-dania`) was itself ~2 mi mis-located on the
+    // Intracoastal side of the peninsula — the same bug class as the LBTS
+    // Atlantic-vs-Intracoastal mistake this module's header documents. Real
+    // catalogued coordinates from `sites`.
+    const perryStreetRockpile = { latitude: 26.047315, longitude: -80.111686 };
+    const result = classifyShoreAccess(perryStreetRockpile);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("perry-street-dania");
+  });
+
+  it("does not manufacture shore access for genuinely offshore Dania artificial reefs", () => {
+    // "Tenneco Towers Deep" — a real, deep artificial reef in the same
+    // catalogue cluster, ~2 mi out. Correcting the mis-located Mizell entry
+    // must not sweep in sites that are actually far offshore.
+    const tennecoTowersDeep = { latitude: 25.9815, longitude: -80.079967 };
+    const result = classifyShoreAccess(tennecoTowersDeep);
+    expect(result.isShoreAccessible).toBe(false);
+  });
+});
+
+describe("classifyShoreAccess — Phil Foster Park entry correction", () => {
+  it("classifies the site literally named for this park, previously wrongly boat-only", () => {
+    // Founder request (2026-08-10): re-verify every catalogued entry's own
+    // coordinates, not just site distances, after mizell-johnson-dania
+    // turned out to be mis-located. phil-foster-blue-heron was ~1.4 mi off
+    // — real coordinates from OSM's own "Phil Foster Park" way and its
+    // "Phil Foster Park Snorkel Reef" divespot node. Real catalogued
+    // coordinates from `sites` for "Phil Foster Park Snorkel Trail", a site
+    // that was `unlikely` at 2509.8 yd purely because the entry meant to
+    // cover it was mis-placed.
+    const snorkelTrail = { latitude: 26.7825, longitude: -80.04217 };
+    const result = classifyShoreAccess(snorkelTrail);
+    expect(result.isShoreAccessible).toBe(true);
+    expect(result.nearestEntry?.id).toBe("phil-foster-blue-heron");
+  });
+});
+
+describe("classifyShoreAccess — known exceptions override geometric range", () => {
+  // Founder concern (2026-08-10): "I'm now really doubting the integrity of
+  // the dive site information." Cross-checking the 19 currently-flagged
+  // sites against independent web sources found two where a credible named
+  // source explicitly contradicts the distance-only model — both real
+  // catalogued coordinates from `sites`.
+
+  it("classifies Goggle-Eye Reef as boat-only despite being within range of an entry", () => {
+    // DiveBuddy.com: "you'll need to arrange a boat charter" to dive it
+    // specifically, distinct from a different nearby shore dive it also
+    // describes.
+    const goggleEyeReef = { latitude: 26.5505, longitude: -80.03832 };
+    const result = classifyShoreAccess(goggleEyeReef);
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+    // Still reports the nearest entry/distance for transparency — the
+    // exception overrides the verdict, not the underlying geometry.
+    expect(result.nearestEntry?.id).toBe("ocean-inlet-park-boynton");
+    expect(result.distanceMiles).not.toBeNull();
+  });
+
+  it("classifies Peanut Island -NE as boat/kayak-only despite being within range of an entry", () => {
+    // Multiple sources: accessible "only by water taxi, shuttle boat,
+    // kayak, or paddleboard" — separated from Phil Foster Park by the Lake
+    // Worth Inlet's navigable channel, not a normal beach swim.
+    const peanutIslandNE = { latitude: 26.77695, longitude: -80.04305 };
+    const result = classifyShoreAccess(peanutIslandNE);
+    expect(result.isShoreAccessible).toBe(false);
+    expect(result.confidence).toBe("unlikely");
+  });
+
+  it("does not suppress a genuinely shore-accessible site near an exception", () => {
+    // Guards the match radius: a real site a short distance away from a
+    // known exception's coordinates must not be swept into the exception.
+    const nearbyRealSite = { latitude: 26.7825, longitude: -80.04217 }; // Phil Foster Park Snorkel Trail
+    const result = classifyShoreAccess(nearbyRealSite);
+    expect(result.isShoreAccessible).toBe(true);
+  });
+});

@@ -125,15 +125,52 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
   {
     id: "phil-foster-blue-heron",
     name: "Phil Foster Park (Blue Heron Bridge), Riviera Beach",
-    latitude: 26.78308,
-    longitude: -80.06528,
+    // Corrected 2026-08-10: the original coordinate (26.78308, -80.06528) was
+    // ~1.4 mi west of the real park — found while re-verifying every
+    // catalogued entry against independent data after two other entries
+    // (mizell-johnson-dania, hollywood-north-beach) turned out to be
+    // similarly mis-geocoded. Real coordinates from OSM (`Phil Foster Park`
+    // way, addr 900 East Blue Heron Blvd, Riviera Beach), cross-checked
+    // against OSM's own `Phil Foster Park Snorkel Reef` node
+    // (`scuba_diving:divespot=yes`, 26.78258, -80.04217) — the actual named
+    // dive spot under the bridge. Note this site is an Intracoastal
+    // lagoon/bridge dive, not an open-Atlantic beach: it will never be near
+    // `natural=coastline` the way the other entries are, so that heuristic
+    // can't validate it — ground-truthed against the named dive-spot node
+    // instead.
+    latitude: 26.7841,
+    longitude: -80.04242,
     note: "Tide-dependent; best at high slack water.",
   },
   {
     id: "mizell-johnson-dania",
     name: "Dr. Von D. Mizell-Eula Johnson State Park, Dania Beach",
-    latitude: 26.0523,
-    longitude: -80.14367,
+    // Corrected 2026-08-10: the original coordinate (26.0523, -80.14367) was
+    // ~1300 yd (2 mi across, on a barrier peninsula ~0.4 mi wide) west of the
+    // park's actual Atlantic beach — the same class of error as the LBTS
+    // Intracoastal-vs-Atlantic mistake this module's header already
+    // documents, not a one-off. It silently pushed every real site near this
+    // park's coastline out of shore-dive range, discovered only because one
+    // of them (Perry Street Rockpile) was independently reported and
+    // verified as a documented shore dive. Corrected to the real Atlantic
+    // coastline (OSM `natural=coastline`, easternmost way) at this latitude.
+    latitude: 26.0531,
+    longitude: -80.1119,
+  },
+  {
+    id: "perry-street-dania",
+    name: "Perry Street Beach, Dania Beach",
+    // Founder-reported (2026-08-10), corroborated by two independent
+    // sources: diverarchives.com confirms the artificial reef itself
+    // ("40000 tons" of limestone boulders, 18 ft max depth, matching the
+    // catalogued site), and scubastar.com (a real dive-tour operator)
+    // states plainly "Perry Street Rock Pile begins 600 feet [200 yd] from
+    // the shore" and names "Perry St. Beach" as the shore entry, 12-20 ft.
+    // Placed at the real Atlantic coastline (OSM `natural=coastline`,
+    // easternmost way) at the foot of Perry Street, not a geocoded address.
+    latitude: 26.0473,
+    longitude: -80.11239,
+    note: "Foot of Perry Street. Entry for the Perry Street Rockpile artificial reef, ~200 yd out, 12-20 ft.",
   },
   { id: "red-reef-boca", name: "Red Reef Park, Boca Raton", latitude: 26.36467, longitude: -80.06953 },
   {
@@ -165,10 +202,84 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
   {
     id: "hollywood-north-beach",
     name: "Hollywood North Beach Park, Hollywood",
-    latitude: 26.01998,
-    longitude: -80.1819,
+    // Corrected 2026-08-10: the original coordinate (26.01998, -80.1819) was
+    // ~4.1 mi west of the real park, well inland — found while re-verifying
+    // every catalogued entry's own coordinates against real coastline data
+    // after the mizell-johnson-dania entry turned out to be similarly
+    // mis-geocoded (founder: "we should really look at the shoreline
+    // closest... some entry points have also been mis guided"). Real
+    // address (3601 N Ocean Dr, Hollywood, FL 33019, at Sheridan St & A1A)
+    // geocoded via Nominatim, then snapped to the nearest real Atlantic
+    // coastline point (OSM `natural=coastline`) at that latitude.
+    latitude: 26.03267,
+    longitude: -80.11374,
+  },
+  {
+    id: "delray-municipal-beach",
+    name: "Delray Municipal Beach (south end), Delray Beach",
+    // Founder-reported gap (2026-08-11): the S.S. Inchulva / Delray Wreck
+    // (a real, well-known shore dive — independently confirmed the founder
+    // asked Gemini, which said yes) was classified `unlikely` because our
+    // nearest catalogued entry, Red Reef Park in Boca Raton, is 10,913 yd
+    // (6.2 mi) away — the correct "under-classify, don't guess" outcome
+    // `shore-access.ts`'s own header describes, not a computation bug: we
+    // simply had no entry catalogued for this stretch of coast.
+    //
+    // Two independent sources agree on ~150 yd / 15-25 ft: the wreck's own
+    // OSM-sourced description ("rests... in 25 feet of water about 150
+    // yards offshore the south end of Delray's municipal beach") and web
+    // research citing "150 yards from shore in 15 to 25 feet of water...
+    // directly off the beach from the Seagate Beach Club." A third,
+    // independently measured figure — the real Atlantic coastline (not
+    // Mapbox's geocoded "Seagate Beach Club" business address, which lands
+    // inland of the actual beach point) at the wreck's own latitude — put
+    // it at 258 yd, the coordinate used below. All three land the same
+    // conclusion (comfortably inside `SHORE_DIVE_EASY_MILES`) despite not
+    // agreeing to the yard.
+    latitude: 26.45227,
+    longitude: -80.05817,
+    note: "South end of Delray's municipal beach, near Seagate. Entry for the S.S. Inchulva / Delray Wreck, ~150-260 yd out, ~15-25 ft.",
+  },
+  {
+    id: "ocean-inlet-park-boynton",
+    name: "Ocean Inlet Park, Boynton Beach",
+    // Found during the founder-requested full-catalogue audit that added
+    // Delray (2026-08-11): four FWC-imported "Boynton Inlet"-named sites
+    // were all `unlikely` with no nearby entry, which read as a plausible
+    // second instance of the exact gap Delray was. Research confirmed a
+    // real, documented, publicly-accessible shore dive/snorkel spot here —
+    // "a shore accessible salt water dive site... the jetty stretches
+    // roughly 100 yards into the Atlantic... reef starting in and around
+    // the park's jetty... maximum depth 11-15 ft" — that we had never
+    // catalogued. Coordinate is the real Atlantic shoreline (not the
+    // geocoded street address, which lands inland of the beach) at the
+    // park's own latitude, same "measure the actual coastline, don't trust
+    // the geocode" discipline every entry in this file follows.
+    //
+    // Real effect on the live catalogue: 3 of the 4 "Boynton Inlet" sites
+    // move from `unlikely` to shore-accessible (263-553 yd out); the fourth,
+    // "Boynton Inlet Step Reef North" at 1425 yd, correctly stays boat-only —
+    // adding this entry doesn't manufacture shore access, it just measures
+    // what was already there.
+    latitude: 26.54599,
+    longitude: -80.04183,
+    note: "Jetty extends ~100 yd into the Atlantic; nearshore reef/ledge around it, ~11-15 ft.",
   },
 ];
+
+/**
+ * Founder follow-up (2026-08-10): resolved the "Boynton Inlet Stepping
+ * Stones Reef" ambiguity flagged during the exceptions audit above. A
+ * Google AI Overview, cross-checked by the founder, confirms it's a real
+ * shore/snorkel dive: entered "just south of the Ocean Inlet Park lifeguard
+ * tower" (this module's `ocean-inlet-park-boynton` entry), ~400 ft to the
+ * near edge of the reef structures, 25-35 ft. The catalogued site's 553 yd
+ * distance is farther than that 400 ft figure — plausibly a farther module
+ * of the same multi-part reef deployment than the near edge the guidance
+ * describes — but nothing here contradicts the `marginal` classification
+ * already in place; no exception or coordinate change needed, this is
+ * confirmatory, not corrective.
+ */
 
 /**
  * Florida law requires a diver-down flag or buoy to be displayed while diving,
@@ -189,6 +300,63 @@ export const SOUTH_FLORIDA_ENTRY_POINTS: ShoreEntryPoint[] = [
  */
 export const FLORIDA_DIVER_DOWN_FLAG_NOTICE =
   "Florida law requires you to display a diver-down flag or buoy while in the water, and to stay close to it.";
+
+/**
+ * Sites within geometric range of a real entry, but that independent named
+ * sources explicitly contradict — found 2026-08-10 while cross-checking the
+ * distance model's output against real web sources, per the founder's own
+ * concern ("I'm now really doubting the integrity of the dive site
+ * information"). Distance-to-entry is a *proxy* for "can a diver walk/swim
+ * here," and it fails specifically when open water between the entry and the
+ * site isn't actually safe or normal to swim — a tidal inlet channel with
+ * boat traffic and current, or a site an authoritative source names as boat
+ * chartered. This list exists because that failure mode is real, not
+ * hypothetical, and the module's own "under-classify, don't guess" principle
+ * means a credible named source saying "boat-only" should win over raw
+ * distance. Each entry needs its own citation — this is not a general escape
+ * hatch, and every addition should be as researched as an entry point.
+ */
+export interface ShoreAccessException extends LatLng {
+  id: string;
+  reason: string;
+}
+
+export const SHORE_ACCESS_EXCEPTIONS: ShoreAccessException[] = [
+  {
+    id: "goggle-eye-reef-boynton",
+    // Real coordinates from `sites`. DiveBuddy.com (a real dive-site
+    // database) states plainly: "Goggle Eye reef is a boat accessible salt
+    // water dive site... While Goggle-Eye Reef is specifically a
+    // boat-accessible site, there are shore diving options in the Boynton
+    // Beach area [describing a different, separate site]... If you're
+    // interested in diving Goggle-Eye Reef specifically, you'll need to
+    // arrange a boat charter." It only fell inside the 0.5 mi threshold
+    // because it's geometrically close to the corrected Ocean Inlet Park
+    // entry — proximity to an entry isn't the same as a safe path from it.
+    latitude: 26.5505,
+    longitude: -80.03832,
+    reason:
+      'DiveBuddy.com names this site explicitly boat-accessible ("you\'ll need to arrange a boat charter"), despite being within geometric range of the Ocean Inlet Park entry.',
+  },
+  {
+    id: "peanut-island-ne",
+    // Real coordinates from `sites`. Multiple independent sources (Florida
+    // Rambler, Get Wet Watersports) agree Peanut Island is "accessible only
+    // by water taxi, shuttle boat, kayak, or paddleboard" — it sits across
+    // the mouth of the Lake Worth Inlet (active tidal channel, boat
+    // traffic) from the Phil Foster Park entry, not along continuous
+    // swimmable nearshore water. The straight-line distance (872 yd) can't
+    // distinguish "872 yd of beach swim" from "872 yd that crosses a
+    // navigable inlet channel" — exactly the gap this exception list exists
+    // to cover.
+    latitude: 26.77695,
+    longitude: -80.04305,
+    reason:
+      "Real sources agree Peanut Island is boat/kayak/water-taxi access only, separated from the mainland by the Lake Worth Inlet channel — not a normal swim, despite being within geometric range of Phil Foster Park.",
+  },
+];
+
+const SHORE_ACCESS_EXCEPTION_MATCH_MILES = 0.02;
 
 export type ShoreAccessConfidence = "likely" | "marginal" | "unlikely";
 
@@ -230,6 +398,13 @@ export function classifyShoreAccess(
   }
 
   if (best > SHORE_DIVE_MAX_MILES) {
+    return { isShoreAccessible: false, confidence: "unlikely", nearestEntry, distanceMiles: best };
+  }
+
+  const isKnownException = SHORE_ACCESS_EXCEPTIONS.some(
+    (exception) => distanceMiles(site, exception) <= SHORE_ACCESS_EXCEPTION_MATCH_MILES,
+  );
+  if (isKnownException) {
     return { isShoreAccessible: false, confidence: "unlikely", nearestEntry, distanceMiles: best };
   }
 

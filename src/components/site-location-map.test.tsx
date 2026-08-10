@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_SITE_LOCATION_ZOOM, SiteLocationMap, siteLocationDescription } from "./site-location-map";
+import {
+  DEFAULT_SITE_LOCATION_ZOOM,
+  SiteLocationMap,
+  siteLocationDescription,
+  buildShoreEntryLine,
+  shoreEntryLineDescription,
+} from "./site-location-map";
 import { legalGlyphTier, pinIconName } from "@/lib/sites/pin-icons";
+import { SOUTH_FLORIDA_ENTRY_POINTS } from "@/lib/sites/shore-access";
 import type { SiteMarker } from "@/lib/sites/types";
 
 /**
@@ -106,5 +113,88 @@ describe("pin reuse", () => {
 describe("default zoom", () => {
   it("is close enough to read a shoreline but not so close the geography drops out", () => {
     expect(DEFAULT_SITE_LOCATION_ZOOM).toBe(14);
+  });
+});
+
+/**
+ * Coverage for the shore-entry line (founder ask, 2026-08-11: "a hash line
+ * from the shore to the site"). The actual line/marker rendering needs the
+ * same real WebGL context this file's own header explains is unavailable
+ * here — `buildShoreEntryLine` and `shoreEntryLineDescription` are the pure
+ * halves of that feature, extracted specifically so the geometry and the
+ * accessible text are verifiable without a browser.
+ */
+
+const DATURA = SOUTH_FLORIDA_ENTRY_POINTS.find((e) => e.id === "datura-ave-lbts")!;
+// A real reef site off Datura, per this session's own measured baseline —
+// close enough offshore to exercise realistic short-distance geometry.
+const SECOND_REEF_SITE = { latitude: 26.19159, longitude: -80.08491 };
+
+describe("buildShoreEntryLine", () => {
+  it("draws a two-point line from the entry to the site, in that order", () => {
+    const line = buildShoreEntryLine(DATURA, SECOND_REEF_SITE);
+    expect(line.lineGeoJSON.geometry.coordinates).toEqual([
+      [DATURA.longitude, DATURA.latitude],
+      [SECOND_REEF_SITE.longitude, SECOND_REEF_SITE.latitude],
+    ]);
+  });
+
+  it("places the entry marker exactly at the entry's own coordinates", () => {
+    const line = buildShoreEntryLine(DATURA, SECOND_REEF_SITE);
+    expect(line.entryPoint).toEqual({ latitude: DATURA.latitude, longitude: DATURA.longitude });
+  });
+
+  it("places the midpoint label between the two points, not at either endpoint", () => {
+    const line = buildShoreEntryLine(DATURA, SECOND_REEF_SITE);
+    expect(line.midpoint.latitude).toBeGreaterThan(Math.min(DATURA.latitude, SECOND_REEF_SITE.latitude));
+    expect(line.midpoint.latitude).toBeLessThan(Math.max(DATURA.latitude, SECOND_REEF_SITE.latitude));
+    expect(line.midpoint.longitude).toBeCloseTo((DATURA.longitude + SECOND_REEF_SITE.longitude) / 2, 10);
+  });
+
+  it("computes bounds that actually contain both the entry and the site", () => {
+    const line = buildShoreEntryLine(DATURA, SECOND_REEF_SITE);
+    const [[west, south], [east, north]] = line.bounds;
+    for (const point of [DATURA, SECOND_REEF_SITE]) {
+      expect(point.longitude).toBeGreaterThanOrEqual(west);
+      expect(point.longitude).toBeLessThanOrEqual(east);
+      expect(point.latitude).toBeGreaterThanOrEqual(south);
+      expect(point.latitude).toBeLessThanOrEqual(north);
+    }
+  });
+
+  it("computes correct bounds regardless of which point is geographically first", () => {
+    // Guards a min/max mix-up: the entry is not always west-of or south-of
+    // the site, so bounds must be a real min/max, not just [entry, site]
+    // read positionally.
+    const entryNortheast = { latitude: 26.3, longitude: -79.9 };
+    const siteSouthwest = { latitude: 26.1, longitude: -80.2 };
+    const line = buildShoreEntryLine(entryNortheast, siteSouthwest);
+    expect(line.bounds).toEqual([
+      [-80.2, 26.1],
+      [-79.9, 26.3],
+    ]);
+  });
+});
+
+describe("shoreEntryLineDescription", () => {
+  it("names the entry and the distance", () => {
+    const text = shoreEntryLineDescription(DATURA, 0.25);
+    expect(text).toContain(DATURA.name);
+    expect(text).toContain("440 yd");
+  });
+
+  it("never claims the line is a confirmed or recommended route", () => {
+    // shore-access.ts's own rule, extended to this new visual: a distance
+    // measurement, never a stronger claim than the classifier itself makes.
+    const text = shoreEntryLineDescription(DATURA, 0.25);
+    expect(text).toMatch(/not a confirmed or recommended route/);
+    expect(text).not.toMatch(/\bconfirmed swim\b/i);
+  });
+
+  it("uses miles, not yards, once the distance crosses the half-mile threshold", () => {
+    // formatShoreDistance's own unit-switching rule (site-dive-profile.tsx) —
+    // reused here, not reimplemented, so the two never disagree on units.
+    const text = shoreEntryLineDescription(DATURA, 0.6);
+    expect(text).toContain("0.6 mi");
   });
 });
