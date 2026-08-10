@@ -101,6 +101,55 @@ describe("SiteDiveProfile — shore access copy", () => {
   });
 });
 
+describe("SiteDiveProfile — walk-in freshwater sites never use the coastal shore-access model", () => {
+  // Found 2026-08-10 verifying Task 22's spring research: this component
+  // called classifyShoreAccess unconditionally, so a spring's own
+  // coordinates (here, OFFSHORE — hundreds of miles from any catalogued
+  // Atlantic entry) produced "the nearest shore entry on file is 300+ mi
+  // away... divers most likely reach this site by boat or charter" on a
+  // walk-in spring's own page. These tests pin the fix.
+
+  it("never says a spring is reached by boat, regardless of its coordinates", () => {
+    renderProfile({ name: "Ginnie Spring", ...OFFSHORE, site_type: "spring" });
+    const body = document.body.textContent ?? "";
+    expect(body).not.toMatch(/boat or charter/i);
+    expect(body).not.toMatch(/No catalogued shore entry within swimming distance/);
+  });
+
+  it("shows walk-in access copy for a spring with no shore_access override", () => {
+    renderProfile({ name: "Ginnie Spring", ...OFFSHORE, site_type: "spring" });
+    expect(screen.getByText("Walk-in freshwater access")).toBeTruthy();
+    expect(screen.getByText(/no boat needed, typically an easy entry/)).toBeTruthy();
+  });
+
+  it("shows walk-in access copy for a cave with no shore_access override", () => {
+    renderProfile({ name: "Some Cave", ...OFFSHORE, site_type: "cave" });
+    expect(screen.getByText("Walk-in freshwater access")).toBeTruthy();
+  });
+
+  it("shows 'not open to recreational diving' for a walk-in site marked unlikely — Task 22's Weeki Wachee/Juniper/Rainbow North finding", () => {
+    renderProfile({ name: "Weeki Wachee Spring", ...OFFSHORE, site_type: "spring", shore_access: "unlikely" });
+    expect(screen.getByText("Not open to recreational diving")).toBeTruthy();
+    expect(screen.queryByText("Walk-in freshwater access")).toBeNull();
+  });
+
+  it("still shows the diver-down flag notice for a genuinely walk-in-accessible spring", () => {
+    renderProfile({ name: "Ginnie Spring", ...OFFSHORE, site_type: "spring", shore_access: "likely" });
+    expect(screen.getByText(FLORIDA_DIVER_DOWN_FLAG_NOTICE)).toBeTruthy();
+  });
+
+  it("omits the diver-down flag notice for a spring that isn't open to diving", () => {
+    renderProfile({ name: "Weeki Wachee Spring", ...OFFSHORE, site_type: "spring", shore_access: "unlikely" });
+    expect(screen.queryByText(FLORIDA_DIVER_DOWN_FLAG_NOTICE)).toBeNull();
+  });
+
+  it("does not affect a coastal site's shore-access rendering — the coastal model still runs", () => {
+    renderProfile({ name: "Datura Reef", ...LIKELY, site_type: "shipwreck" });
+    expect(screen.getByText(/Plausibly shore-accessible — verify conditions/)).toBeTruthy();
+    expect(screen.queryByText("Walk-in freshwater access")).toBeNull();
+  });
+});
+
 describe("SiteDiveProfile — diver-down flag", () => {
   it("surfaces the Florida notice as a legal requirement for shore-accessible sites", () => {
     renderProfile({ name: "Datura Reef", ...LIKELY });

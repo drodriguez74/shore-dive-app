@@ -41,6 +41,17 @@
  * - **The diver-down flag notice is a legal requirement, not a tip**, so it is
  *   surfaced for every shore-accessible site rather than left to per-site
  *   notes most sites will never have.
+ * - **`classifyShoreAccess` is a coastal-distance model and must not run
+ *   against a walk-in freshwater site.** Found 2026-08-10 verifying Task
+ *   22's spring research: this component called it unconditionally, so a
+ *   spring's own coordinates (often hundreds of miles from any catalogued
+ *   Atlantic entry) produced a real but nonsensical result — "the nearest
+ *   shore entry on file is 300+ mi away... divers most likely reach this
+ *   site by boat or charter" on a walk-in spring's own page. Gated on
+ *   `usesCoastalDistanceModel(site.site_type)` (`./water-access.ts`), same
+ *   as `shore-access.ts`'s own documented scope; walk-in sites render from
+ *   `classifyWaterAccess()` and the site's own stored `shore_access`
+ *   instead (see `WalkInAccessBody`).
  *
  * A note on `CERTIFICATION_LABEL`: it is used verbatim for `open_water`,
  * `advanced_open_water` and for the *entirely* beyond-recreational case, where
@@ -65,10 +76,10 @@ import {
   SHORE_DIVE_MAX_MILES,
   type ShoreAccessResult,
 } from "@/lib/sites/shore-access";
-import { classifyWaterAccess } from "@/lib/sites/water-access";
+import { classifyWaterAccess, usesCoastalDistanceModel, type WaterAccess } from "@/lib/sites/water-access";
 import { classifyDiveDifficulty, DIFFICULTY_LABEL, type DifficultyLevel } from "@/lib/sites/dive-difficulty";
 import { resolveSiteDepthFt, type DepthCarryingSite } from "@/lib/sites/site-depth";
-import type { SiteType } from "@/lib/sites/types";
+import type { ShoreAccessConfidence, SiteType } from "@/lib/sites/types";
 
 export interface SiteDiveProfileProps {
   site: DepthCarryingSite & {
@@ -76,14 +87,20 @@ export interface SiteDiveProfileProps {
     latitude: number;
     longitude: number;
     site_type?: SiteType | null;
+    shore_access?: ShoreAccessConfidence | null;
   };
 }
 
 export function SiteDiveProfile({ site }: SiteDiveProfileProps) {
   const depth = resolveSiteDepthFt(site);
   const suitability = classifyDiveSuitability({ minFt: depth.minFt, maxFt: depth.maxFt });
-  const shore = classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude });
   const water = classifyWaterAccess(site.site_type);
+  // `classifyShoreAccess` measures distance to a *coastal* entry point — see
+  // this component's header note (2026-08-10). Never call it for a walk-in
+  // freshwater site; `usesCoastalDistanceModel` is the same gate
+  // `shore-access.ts`'s own docs point callers at.
+  const isWalkInSite = !usesCoastalDistanceModel(site.site_type);
+  const shore = isWalkInSite ? null : classifyShoreAccess({ latitude: site.latitude, longitude: site.longitude });
   const difficulty = classifyDiveDifficulty(
     { latitude: site.latitude, longitude: site.longitude },
     { minFt: depth.minFt, maxFt: depth.maxFt },
@@ -177,9 +194,13 @@ export function SiteDiveProfile({ site }: SiteDiveProfileProps) {
 
       <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">Shore access</h2>
-        <ShoreAccessBody shore={shore} />
+        {isWalkInSite ? (
+          <WalkInAccessBody water={water} shoreAccess={site.shore_access} />
+        ) : (
+          <ShoreAccessBody shore={shore!} />
+        )}
 
-        {shore.isShoreAccessible && (
+        {(shore?.isShoreAccessible || (isWalkInSite && site.shore_access !== "unlikely")) && (
           <div className="rounded-lg border border-amber-600/20 bg-amber-500/5 p-3 dark:border-amber-400/20">
             <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
               Legal requirement — diver-down flag
@@ -261,6 +282,49 @@ function DiveDifficultyBody({
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
         Based only on depth, overhead environment and swim distance — not a safety rating. Current, visibility,
         surf and your own fitness decide whether a dive is actually easy on any given day.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Shore access for a walk-in freshwater site (spring/cave) — `water.summary`
+ * plus the site's own stored `shore_access`, never `classifyShoreAccess`
+ * (see this component's header note). Most walk-in sites are genuinely
+ * easy, no-boat entries; `shore_access: "unlikely"` here means the
+ * opposite of what it means for a coastal site — not "too far to swim",
+ * but "not open to general recreational diving at all" (a real, found
+ * case: Task 22 found 3 springs matching this). Deliberately doesn't name
+ * the specific reason — that lives in the site's research summary, if it
+ * has one — so this component doesn't need to know it to render honestly.
+ */
+function WalkInAccessBody({
+  water,
+  shoreAccess,
+}: {
+  water: WaterAccess;
+  shoreAccess: ShoreAccessConfidence | null | undefined;
+}) {
+  if (shoreAccess === "unlikely") {
+    return (
+      <div>
+        <p className="text-sm font-medium text-black dark:text-zinc-50">Not open to recreational diving</p>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          This is a walk-in freshwater site, but general access for diving is restricted or unavailable — check
+          the notes on this page before planning a trip here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-black dark:text-zinc-50">Walk-in freshwater access</p>
+      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{water.summary}</p>
+      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
+        This app&apos;s shore-access distance model is built for coastal reefs and wrecks and doesn&apos;t apply
+        here — a spring&apos;s own site rules and any overhead-environment training required (see above) decide
+        access, not a swim distance.
       </p>
     </div>
   );
