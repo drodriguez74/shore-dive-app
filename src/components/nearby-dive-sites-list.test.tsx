@@ -51,6 +51,8 @@ const BASE_PROPS: NearbyDiveSitesListProps = {
   onSiteTypeFilterChange: vi.fn(),
   difficultyFilter: "all",
   onDifficultyFilterChange: vi.fn(),
+  shoreAccessFilter: "all",
+  onShoreAccessFilterChange: vi.fn(),
   isSignedIn: false,
 };
 
@@ -60,8 +62,16 @@ describe("NearbyDiveSitesList — the structural fix itself", () => {
   it("does NOT unmount the filter buttons when coords resolves mid-session", () => {
     const { rerender, container } = render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} />);
 
-    const beforeButton = [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Reef");
-    expect(beforeButton).toBeTruthy();
+    const findButtons = () =>
+      new Map(
+        ["Reef", "Shore accessible"].map((label) => [
+          label,
+          [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === label),
+        ]),
+      );
+    const before = findButtons();
+    expect(before.get("Reef")).toBeTruthy();
+    expect(before.get("Shore accessible")).toBeTruthy();
 
     // The exact transition that broke it: coords goes from null to resolved,
     // asynchronously, exactly like the real `useGeolocation` effect firing.
@@ -73,12 +83,14 @@ describe("NearbyDiveSitesList — the structural fix itself", () => {
       />,
     );
 
-    const afterButton = [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Reef");
-    expect(afterButton).toBeTruthy();
-    // The regression check: literally the same DOM node, not a lookalike
-    // rendered fresh after an unmount/remount cycle.
-    expect(afterButton).toBe(beforeButton);
-    expect(afterButton?.isConnected).toBe(true);
+    const after = findButtons();
+    // The regression check: literally the same DOM nodes, not lookalikes
+    // rendered fresh after an unmount/remount cycle — checked for both the
+    // original filter row and the shore-access row added afterward, since
+    // the same structural risk applies to any control in this tree.
+    expect(after.get("Reef")).toBe(before.get("Reef"));
+    expect(after.get("Shore accessible")).toBe(before.get("Shore accessible"));
+    expect(after.get("Reef")?.isConnected).toBe(true);
   });
 
   it("does NOT unmount the filter buttons when coords is lost (resolved -> null)", () => {
@@ -151,5 +163,23 @@ describe("NearbyDiveSitesList — empty states stay honest across both coords st
   it("returns null (renders nothing) when there are no sites at all and no filter is active", () => {
     const { container } = render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} sites={[]} />);
     expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("NearbyDiveSitesList — per-row shore-access badge", () => {
+  it("shows 'Shore' for a shore-accessible site", () => {
+    render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} sites={[site({ shore_access: "likely" })]} />);
+    expect(screen.getByText("Shore")).toBeTruthy();
+  });
+
+  it("shows 'Boat' for a boat-access site", () => {
+    render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} sites={[site({ shore_access: "unlikely" })]} />);
+    expect(screen.getByText("Boat")).toBeTruthy();
+  });
+
+  it("shows no badge at all for a not-yet-classified site", () => {
+    render(<NearbyDiveSitesList {...BASE_PROPS} coords={null} sites={[site({ shore_access: null })]} />);
+    expect(screen.queryByText("Shore")).toBeNull();
+    expect(screen.queryByText("Boat")).toBeNull();
   });
 });

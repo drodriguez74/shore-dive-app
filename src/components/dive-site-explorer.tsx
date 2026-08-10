@@ -32,6 +32,37 @@ export type SiteTypeFilter = SiteType | "all";
  * below for how the two meet: a `null`-level site matches only `"all"`. */
 export type DifficultyFilter = DifficultyLevel | "all";
 
+/**
+ * Founder-reported gap (2026-08-11): `shore-access.ts`'s classification has
+ * existed since T21.20 and is rendered per-site (the detail page, the pin
+ * preview sheet), but nothing ever let a diver *filter* by it — despite
+ * "can I walk in from shore" being this app's entire premise (CLAUDE.md's
+ * Map-Driven Exploration pillar) and the founder's own earlier explicit ask
+ * ("we just use our default filter of shore dive"). Live data at the time
+ * this was added: 27 of 445 sites are shore-accessible (21 `likely` + 6
+ * `marginal`) — the other 418 are `unlikely`/boat access. Without this
+ * filter there was no way to see just the 27.
+ *
+ * Deliberately three options, not four. `ShoreAccessConfidence` itself has
+ * three values (`likely`/`marginal`/`unlikely`), and the type/difficulty
+ * filters above each mirror their source enum one chip per value — but this
+ * filter groups `likely` and `marginal` into one "Shore accessible" option
+ * instead. Reasoning: a diver filtering for shore dives wants *both* (an
+ * easy walk and a long-swim walk are both "I don't need a boat"), and these
+ * filter chips are single-select, not checkboxes — mirroring the raw enum
+ * would force choosing "easy walk-ins only" or "long swims only" as two
+ * separate, mutually-exclusive filters to get what should be one click. The
+ * finer likely-vs-marginal distinction stays visible per-site (detail page,
+ * pin sheet) — this is a coarse top-level filter, not a replacement for that.
+ */
+export type ShoreAccessFilter = "all" | "accessible" | "boat";
+
+export const SHORE_ACCESS_FILTER_LABEL: Record<ShoreAccessFilter, string> = {
+  all: "All access",
+  accessible: "Shore accessible",
+  boat: "Boat access",
+};
+
 /** Moved here from `nearby-dive-sites-list.tsx` (2026-08-10) so `SiteMap`'s
  * own empty-state messaging — see `mapEmptyStateMessage` below — can share
  * the exact wording the list already uses, rather than drifting into a
@@ -46,13 +77,19 @@ export function radiusLabel(miles: number): string {
 
 /** Builds a lowercase noun-phrase prefix ("beginner reef ", "advanced ",
  * "cave ", or "" when no filter is active) for empty-state copy — one helper
- * so a diver filtering by *both* difficulty and type sees an accurate
- * combined description ("No beginner reef sites…") rather than a message
- * that silently drops one active filter. Difficulty reads first (the
- * sentence conventionally goes adjective-then-noun: "beginner reef", not
- * "reef beginner"). */
-export function describeActiveFilters(siteTypeFilter: SiteTypeFilter, difficultyFilter: DifficultyFilter): string {
+ * so a diver filtering by *multiple* axes at once sees an accurate combined
+ * description ("No shore-accessible beginner reef sites…") rather than a
+ * message that silently drops an active filter. Shore-access reads first,
+ * then difficulty, then type — English adjective ordering ("shore-accessible
+ * beginner reef", not "beginner reef shore-accessible"). */
+export function describeActiveFilters(
+  siteTypeFilter: SiteTypeFilter,
+  difficultyFilter: DifficultyFilter,
+  shoreAccessFilter: ShoreAccessFilter = "all",
+): string {
   const parts: string[] = [];
+  if (shoreAccessFilter === "accessible") parts.push("shore-accessible");
+  if (shoreAccessFilter === "boat") parts.push("boat-access");
   if (difficultyFilter !== "all") parts.push(DIFFICULTY_LABEL[difficultyFilter].toLowerCase());
   if (siteTypeFilter !== "all") parts.push(SITE_TYPE_LABELS[siteTypeFilter].toLowerCase());
   return parts.length > 0 ? `${parts.join(" ")} ` : "";
@@ -77,6 +114,7 @@ export interface MapEmptyStateParams {
   radiusMiles: number;
   siteTypeFilter: SiteTypeFilter;
   difficultyFilter: DifficultyFilter;
+  shoreAccessFilter: ShoreAccessFilter;
   searchedExternally: boolean;
 }
 
@@ -104,16 +142,17 @@ export interface MapEmptyStateParams {
  * expanding to).
  */
 export function computeMapEmptyStateMessage(params: MapEmptyStateParams): string | null {
-  const { resultCount, hasCoords, radiusMiles, siteTypeFilter, difficultyFilter, searchedExternally } = params;
+  const { resultCount, hasCoords, radiusMiles, siteTypeFilter, difficultyFilter, shoreAccessFilter, searchedExternally } =
+    params;
 
   if (resultCount > 0 || !hasCoords || !Number.isFinite(radiusMiles)) return null;
 
-  const noFilterActive = siteTypeFilter === "all" && difficultyFilter === "all";
+  const noFilterActive = siteTypeFilter === "all" && difficultyFilter === "all" && shoreAccessFilter === "all";
   const canExpand = radiusMiles < MAX_RADIUS_MILES;
 
   if (!noFilterActive) {
     const suffix = canExpand ? " Try expanding the radius or clearing filters." : "";
-    return `No ${describeActiveFilters(siteTypeFilter, difficultyFilter)}sites within ${radiusLabel(radiusMiles)} of your location.${suffix}`;
+    return `No ${describeActiveFilters(siteTypeFilter, difficultyFilter, shoreAccessFilter)}sites within ${radiusLabel(radiusMiles)} of your location.${suffix}`;
   }
 
   if (searchedExternally) {
@@ -141,6 +180,24 @@ export function siteDifficultyLevel(site: SiteMarker): DifficultyLevel | null {
     { minFt: site.depth_min_ft ?? null, maxFt: site.depth_max_ft ?? null },
     site.site_type,
   ).level;
+}
+
+/**
+ * Reads a `SiteMarker`'s already-stored `shore_access` column directly —
+ * unlike `siteDifficultyLevel`, this does not recompute a classification
+ * from scratch. `classifyShoreAccess()` needs the hand-curated
+ * `SOUTH_FLORIDA_ENTRY_POINTS` list and a haversine call per site; running
+ * that per marker on every render (up to 500+ sites in view) would be pure
+ * duplicated cost when the import pipeline already persisted the answer.
+ * Returns `null` for a site that hasn't been classified yet (distinct from
+ * `"unlikely"`, matching `shore-access.ts`'s own "no known entry is not
+ * evidence of boat-only" rule) — such a site matches only `"all"`, the same
+ * pattern `siteDifficultyLevel`'s `level: null` already established.
+ */
+export function siteShoreAccessCategory(site: SiteMarker): "accessible" | "boat" | null {
+  if (site.shore_access === "likely" || site.shore_access === "marginal") return "accessible";
+  if (site.shore_access === "unlikely") return "boat";
+  return null;
 }
 
 interface SearchNearbyResponse {
@@ -229,9 +286,11 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
     radiusMiles,
     siteTypeFilter,
     difficultyFilter,
+    shoreAccessFilter,
     setRadiusMiles,
     setSiteTypeFilter,
     setDifficultyFilter,
+    setShoreAccessFilter,
   } = useExplorerPreferences();
   const [search, setSearch] = useState<SearchNearbyState>(IDLE_SEARCH_STATE);
 
@@ -346,8 +405,22 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
   const matchesDifficulty = (site: SiteMarker) =>
     difficultyFilter === "all" || siteDifficultyLevel(site) === difficultyFilter;
 
-  const filteredInRadius = inRadius.filter((entry) => matchesType(entry.site) && matchesDifficulty(entry.site));
-  const filteredSites = sites.filter((site) => matchesType(site) && matchesDifficulty(site));
+  // Filter-by-shore-access (2026-08-11, founder: "why can't we have a shore
+  // dive filter?" — see `ShoreAccessFilter`'s own doc comment above for the
+  // full rationale). Same shared level as type/difficulty, same reason: a
+  // filter that only touched the list would leave stale, filtered-out pins
+  // on the map. Same `null`-is-excluded-from-named-filters discipline as
+  // difficulty too — a site with no shore-access classification yet matches
+  // only `"all"`, never silently counted as either bucket.
+  const matchesShoreAccess = (site: SiteMarker) =>
+    shoreAccessFilter === "all" || siteShoreAccessCategory(site) === shoreAccessFilter;
+
+  const filteredInRadius = inRadius.filter(
+    (entry) => matchesType(entry.site) && matchesDifficulty(entry.site) && matchesShoreAccess(entry.site),
+  );
+  const filteredSites = sites.filter(
+    (site) => matchesType(site) && matchesDifficulty(site) && matchesShoreAccess(site),
+  );
 
   // T21.6's actual fix: the site set fed to the map. Once geolocation has
   // resolved and a finite radius is selected, the map's pins are exactly
@@ -370,6 +443,7 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
     radiusMiles,
     siteTypeFilter,
     difficultyFilter,
+    shoreAccessFilter,
     searchedExternally,
   });
 
@@ -393,6 +467,8 @@ export function DiveSiteExplorer({ sites, isSignedIn = false }: DiveSiteExplorer
         onSiteTypeFilterChange={setSiteTypeFilter}
         difficultyFilter={difficultyFilter}
         onDifficultyFilterChange={setDifficultyFilter}
+        shoreAccessFilter={shoreAccessFilter}
+        onShoreAccessFilterChange={setShoreAccessFilter}
         isSignedIn={isSignedIn}
       />
     </>

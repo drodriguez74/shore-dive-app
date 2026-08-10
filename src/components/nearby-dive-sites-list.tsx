@@ -9,10 +9,13 @@ import { DIFFICULTY_LABEL, type DifficultyLevel } from "@/lib/sites/dive-difficu
 import type { SiteMarker } from "@/lib/sites/types";
 import {
   siteDifficultyLevel,
+  siteShoreAccessCategory,
   radiusLabel,
   describeActiveFilters,
+  SHORE_ACCESS_FILTER_LABEL,
   type SiteTypeFilter,
   type DifficultyFilter,
+  type ShoreAccessFilter,
 } from "@/components/dive-site-explorer";
 
 export interface SiteWithDistance {
@@ -47,6 +50,11 @@ export interface NearbyDiveSitesListProps {
    * identical reason (`DiveSiteExplorer`'s own comments). */
   difficultyFilter: DifficultyFilter;
   onDifficultyFilterChange: (filter: DifficultyFilter) => void;
+  /** Currently selected shore-access filter (2026-08-11, founder: "why can't
+   * we have a shore dive filter?") — same shared-state-lives-in-the-parent
+   * pattern as the two filters immediately above. */
+  shoreAccessFilter: ShoreAccessFilter;
+  onShoreAccessFilterChange: (filter: ShoreAccessFilter) => void;
   /** Resolved server-side and threaded down from `DiveSiteExplorer`. Only
    * affects the zero-result empty state — see `SignInToSearchHint` below. */
   isSignedIn?: boolean;
@@ -95,9 +103,12 @@ export function NearbyDiveSitesList({
   onSiteTypeFilterChange,
   difficultyFilter,
   onDifficultyFilterChange,
+  shoreAccessFilter,
+  onShoreAccessFilterChange,
   isSignedIn = false,
 }: NearbyDiveSitesListProps) {
-  const noFilterActive = siteTypeFilter === "all" && difficultyFilter === "all";
+  const noFilterActive =
+    siteTypeFilter === "all" && difficultyFilter === "all" && shoreAccessFilter === "all";
   if (sites.length === 0 && noFilterActive) return null;
 
   const maxRadius = radiusOptions[radiusOptions.length - 1];
@@ -164,6 +175,7 @@ export function NearbyDiveSitesList({
 
       <SiteTypeFilterRow value={siteTypeFilter} onChange={onSiteTypeFilterChange} />
       <DifficultyFilterRow value={difficultyFilter} onChange={onDifficultyFilterChange} />
+      <ShoreAccessFilterRow value={shoreAccessFilter} onChange={onShoreAccessFilterChange} />
 
       {hasCoords && isSearching && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">Looking for dive sites near you…</p>
@@ -175,7 +187,7 @@ export function NearbyDiveSitesList({
             {hasCoords ? (
               <>
                 {!noFilterActive
-                  ? `No ${describeActiveFilters(siteTypeFilter, difficultyFilter)}sites within ${radiusLabel(radiusMiles)} of your location yet.`
+                  ? `No ${describeActiveFilters(siteTypeFilter, difficultyFilter, shoreAccessFilter)}sites within ${radiusLabel(radiusMiles)} of your location yet.`
                   : searchedExternally
                     ? `Checked OpenStreetMap too — no dive sites within ${radiusLabel(radiusMiles)} yet`
                     : `No dive sites within ${radiusLabel(radiusMiles)} of your location yet`}
@@ -186,7 +198,7 @@ export function NearbyDiveSitesList({
               // return above already handles sites.length === 0 with no
               // filter active, so this branch always has at least one real
               // filter description to name.
-              <>No {describeActiveFilters(siteTypeFilter, difficultyFilter)}sites on file yet.</>
+              <>No {describeActiveFilters(siteTypeFilter, difficultyFilter, shoreAccessFilter)}sites on file yet.</>
             )}
           </p>
           {hasCoords && !isSignedIn && noFilterActive && !searchedExternally && <SignInToSearchHint />}
@@ -313,6 +325,50 @@ function DifficultyFilterRow({
   );
 }
 
+/** Chip row: "All" plus one chip per `ShoreAccessFilter` grouping (2026-08-11
+ * — see `ShoreAccessFilter`'s own doc comment in `dive-site-explorer.tsx` for
+ * why this is three grouped options rather than one chip per raw
+ * `ShoreAccessConfidence` value). Same deliberately-simple native-button
+ * style as the two filter rows above. */
+function ShoreAccessFilterRow({
+  value,
+  onChange,
+}: {
+  value: ShoreAccessFilter;
+  onChange: (filter: ShoreAccessFilter) => void;
+}) {
+  const options: ShoreAccessFilter[] = ["all", "accessible", "boat"];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((option) => {
+        const isActive = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            aria-pressed={isActive}
+            title={
+              option === "all"
+                ? "Includes sites with no shore-access assessment yet"
+                : option === "accessible"
+                  ? "Plausibly reachable by swimming from a catalogued shore entry — verify conditions before diving"
+                  : "No catalogued shore entry within swimming distance — most likely a boat/charter dive"
+            }
+            className={`min-h-[28px] rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+              isActive
+                ? "border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500"
+                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-zinc-600"
+            }`}
+          >
+            {SHORE_ACCESS_FILTER_LABEL[option]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Badge colors (T21.26) — a distinct hue per level, escalating in visual
  * "loudness" from beginner to technical, and deliberately NOT reusing any
@@ -364,6 +420,42 @@ function DifficultyBadge({ level }: { level: DifficultyLevel | null }) {
   );
 }
 
+/** Colors deliberately distinct from every other badge already in this row —
+ * `ProvenanceBadge` (violet=community), `LegalAccessBadge` (emerald/amber),
+ * `DifficultyBadge` (teal/blue/orange/red) — so a diver scanning the row
+ * never mistakes shore-access for one of those other, unrelated axes. Cyan
+ * (accessible) evokes water without colliding with anything claimed above;
+ * indigo (boat) is deliberately calm/neutral, not a warning color — boat
+ * access isn't a problem, just a different logistics answer. */
+const SHORE_ACCESS_BADGE_CLASSES: Record<"accessible" | "boat", string> = {
+  accessible:
+    "border-cyan-600/40 bg-cyan-500/10 text-cyan-800 dark:border-cyan-400/40 dark:bg-cyan-400/10 dark:text-cyan-300",
+  boat: "border-indigo-600/40 bg-indigo-500/10 text-indigo-800 dark:border-indigo-400/40 dark:bg-indigo-400/10 dark:text-indigo-300",
+};
+
+/** Mirrors `DifficultyBadge`'s null-hides-the-badge rule: a site with no
+ * shore-access classification yet shows nothing, never a default/guessed
+ * state — same "never imply data you don't have" discipline. Tooltip text
+ * intentionally hedges ("plausibly"/"most likely"), matching `shore-
+ * access.ts`'s own rule that this is a distance measurement, never a
+ * confirmed fact about a specific site. */
+function ShoreAccessBadge({ site }: { site: SiteMarker }) {
+  const category = siteShoreAccessCategory(site);
+  if (category === null) return null;
+  return (
+    <span
+      title={
+        category === "accessible"
+          ? "Plausibly reachable by swimming from a catalogued shore entry — verify conditions before diving"
+          : "No catalogued shore entry within swimming distance — most likely a boat/charter dive"
+      }
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${SHORE_ACCESS_BADGE_CLASSES[category]}`}
+    >
+      {category === "accessible" ? "Shore" : "Boat"}
+    </span>
+  );
+}
+
 function SiteRows({ sites, distances }: { sites: SiteMarker[]; distances: Map<string, number> | null }) {
   return (
     <ul className="mt-1 flex flex-col gap-2">
@@ -382,6 +474,7 @@ function SiteRows({ sites, distances }: { sites: SiteMarker[]; distances: Map<st
               )}
             </span>
             <div className="flex flex-wrap items-center gap-2">
+              <ShoreAccessBadge site={site} />
               <DifficultyBadge level={siteDifficultyLevel(site)} />
               <ProvenanceBadge provenance={site.provenance} />
               <LegalAccessBadge status={site.legal_access_status} />

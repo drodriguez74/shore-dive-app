@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { computeMapEmptyStateMessage } from "./dive-site-explorer";
+import { computeMapEmptyStateMessage, siteShoreAccessCategory } from "./dive-site-explorer";
+import type { SiteMarker } from "@/lib/sites/types";
+
+function site(overrides: Partial<SiteMarker> = {}): SiteMarker {
+  return {
+    id: "site-1",
+    name: "Test Site",
+    latitude: 26.1,
+    longitude: -80.1,
+    provenance: "COMMUNITY",
+    legal_access_status: null,
+    site_type: "shore_reef",
+    hasHazardReport: false,
+    ...overrides,
+  };
+}
+
+describe("siteShoreAccessCategory", () => {
+  it("groups 'likely' and 'marginal' into 'accessible'", () => {
+    expect(siteShoreAccessCategory(site({ shore_access: "likely" }))).toBe("accessible");
+    expect(siteShoreAccessCategory(site({ shore_access: "marginal" }))).toBe("accessible");
+  });
+
+  it("maps 'unlikely' to 'boat'", () => {
+    expect(siteShoreAccessCategory(site({ shore_access: "unlikely" }))).toBe("boat");
+  });
+
+  it("returns null for a not-yet-classified site, distinct from 'boat'", () => {
+    // shore-access.ts's own rule: no known entry is not evidence of
+    // boat-only. A site whose shore_access is genuinely null (never
+    // classified) must not be silently swept into the boat-access bucket.
+    expect(siteShoreAccessCategory(site({ shore_access: null }))).toBeNull();
+    expect(siteShoreAccessCategory(site({ shore_access: undefined }))).toBeNull();
+  });
+});
 
 /**
  * Regression coverage for the founder-reported bug (2026-08-10): the map's
@@ -15,6 +49,7 @@ const BASE = {
   radiusMiles: 25,
   siteTypeFilter: "all" as const,
   difficultyFilter: "all" as const,
+  shoreAccessFilter: "all" as const,
   searchedExternally: false,
 };
 
@@ -73,5 +108,40 @@ describe("computeMapEmptyStateMessage — a filter, not just distance, produced 
     // would misattribute why the result is empty.
     const msg = computeMapEmptyStateMessage({ ...BASE, siteTypeFilter: "cave", searchedExternally: true });
     expect(msg).not.toMatch(/OpenStreetMap/);
+  });
+});
+
+describe("computeMapEmptyStateMessage — shore-access filter (2026-08-11)", () => {
+  it("names 'shore-accessible' when that filter alone produced the empty result", () => {
+    const msg = computeMapEmptyStateMessage({ ...BASE, shoreAccessFilter: "accessible" });
+    expect(msg).toContain("No shore-accessible sites within 25 mi of your location.");
+  });
+
+  it("names 'boat-access' for the boat-access filter, not an overclaiming 'boat-only'", () => {
+    // shore-access.ts's own rule: "unlikely" is never rendered as a
+    // certainty. The filter label mirrors that hedge rather than asserting
+    // these sites categorically require a boat.
+    const msg = computeMapEmptyStateMessage({ ...BASE, shoreAccessFilter: "boat" });
+    expect(msg).toContain("No boat-access sites within 25 mi of your location.");
+  });
+
+  it("combines shore-access with type and difficulty, shore-access reading first", () => {
+    const msg = computeMapEmptyStateMessage({
+      ...BASE,
+      shoreAccessFilter: "accessible",
+      difficultyFilter: "beginner",
+      siteTypeFilter: "cave",
+    });
+    expect(msg).toContain("No shore-accessible beginner cave sites within 25 mi of your location.");
+  });
+
+  it("treats shoreAccessFilter as an active filter for the noFilterActive branch", () => {
+    // Regression guard: noFilterActive must check all three filters, not
+    // just type/difficulty — otherwise a shore-access-only filter would
+    // wrongly fall into the "no filter active" wording branch (which
+    // credits/blames distance and OpenStreetMap, not the filter).
+    const msg = computeMapEmptyStateMessage({ ...BASE, shoreAccessFilter: "accessible", searchedExternally: true });
+    expect(msg).not.toMatch(/OpenStreetMap/);
+    expect(msg).toMatch(/clearing filters/i);
   });
 });

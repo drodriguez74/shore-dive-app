@@ -43,6 +43,12 @@ const STORAGE_KEY = "shore-dive:explorer-preferences:v1";
 
 export type SiteTypeFilterValue = SiteType | "all";
 export type DifficultyFilterValue = DifficultyLevel | "all";
+/** Mirrors `ShoreAccessFilter` in `dive-site-explorer.tsx` — kept here as its
+ * own plain string union (not imported) for the same reason `SiteType`'s
+ * values are hand-duplicated below into `SITE_TYPE_FILTER_VALUES`: this
+ * module must not import a `"use client"` component file just to reference
+ * three literal strings. */
+export type ShoreAccessFilterValue = "all" | "accessible" | "boat";
 
 export interface MapViewport {
   longitude: number;
@@ -64,6 +70,12 @@ export interface ExplorerPreferences {
    * `level: null` for "not enough data", but that is a per-site classifier
    * output, not a selectable filter value, so it has no representation here. */
   difficultyFilter: DifficultyFilterValue;
+  /** Added 2026-08-11 (founder: "why can't we have a shore dive filter?") —
+   * mirrors `difficultyFilter` field-for-field. See `ShoreAccessFilter`'s own
+   * doc comment in `dive-site-explorer.tsx` for why this groups
+   * `likely`/`marginal` into one "accessible" option instead of one filter
+   * value per raw `ShoreAccessConfidence` state. */
+  shoreAccessFilter: ShoreAccessFilterValue;
 }
 
 /** Matches `DiveSiteExplorer`'s first radius option and the "no filter"
@@ -74,6 +86,7 @@ export const DEFAULT_EXPLORER_PREFERENCES: ExplorerPreferences = {
   radiusMiles: 25,
   siteTypeFilter: "all",
   difficultyFilter: "all",
+  shoreAccessFilter: "all",
 };
 
 const SITE_TYPE_FILTER_VALUES: SiteTypeFilterValue[] = [
@@ -99,6 +112,8 @@ const DIFFICULTY_FILTER_VALUES: DifficultyFilterValue[] = [
   "advanced",
   "technical",
 ];
+
+const SHORE_ACCESS_FILTER_VALUES: ShoreAccessFilterValue[] = ["all", "accessible", "boat"];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -147,6 +162,12 @@ function parseDifficultyFilter(value: unknown): DifficultyFilterValue {
     : DEFAULT_EXPLORER_PREFERENCES.difficultyFilter;
 }
 
+function parseShoreAccessFilter(value: unknown): ShoreAccessFilterValue {
+  return SHORE_ACCESS_FILTER_VALUES.includes(value as ShoreAccessFilterValue)
+    ? (value as ShoreAccessFilterValue)
+    : DEFAULT_EXPLORER_PREFERENCES.shoreAccessFilter;
+}
+
 function readPersisted(): ExplorerPreferences {
   if (typeof window === "undefined") return DEFAULT_EXPLORER_PREFERENCES;
   try {
@@ -158,6 +179,7 @@ function readPersisted(): ExplorerPreferences {
       radiusMiles: parseRadius(parsed.radiusMiles),
       siteTypeFilter: parseSiteTypeFilter(parsed.siteTypeFilter),
       difficultyFilter: parseDifficultyFilter(parsed.difficultyFilter),
+      shoreAccessFilter: parseShoreAccessFilter(parsed.shoreAccessFilter),
     };
   } catch {
     // Corrupt/unreadable storage is not exceptional here — this is UI
@@ -195,6 +217,7 @@ function commit(next: ExplorerPreferences): void {
           radiusMiles: serializeRadius(next.radiusMiles),
           siteTypeFilter: next.siteTypeFilter,
           difficultyFilter: next.difficultyFilter,
+          shoreAccessFilter: next.shoreAccessFilter,
         }),
       );
     } catch {
@@ -225,6 +248,7 @@ export interface UseExplorerPreferencesResult extends ExplorerPreferences {
   setRadiusMiles: (radiusMiles: number) => void;
   setSiteTypeFilter: (siteTypeFilter: SiteTypeFilterValue) => void;
   setDifficultyFilter: (difficultyFilter: DifficultyFilterValue) => void;
+  setShoreAccessFilter: (shoreAccessFilter: ShoreAccessFilterValue) => void;
 }
 
 export function useExplorerPreferences(): UseExplorerPreferencesResult {
@@ -251,5 +275,17 @@ export function useExplorerPreferences(): UseExplorerPreferencesResult {
     commit({ ...getSnapshot(), difficultyFilter });
   }, []);
 
-  return { ...preferences, isHydrated, setViewport, setRadiusMiles, setSiteTypeFilter, setDifficultyFilter };
+  const setShoreAccessFilter = useCallback((shoreAccessFilter: ShoreAccessFilterValue) => {
+    commit({ ...getSnapshot(), shoreAccessFilter });
+  }, []);
+
+  return {
+    ...preferences,
+    isHydrated,
+    setViewport,
+    setRadiusMiles,
+    setSiteTypeFilter,
+    setDifficultyFilter,
+    setShoreAccessFilter,
+  };
 }
