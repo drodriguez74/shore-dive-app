@@ -6,6 +6,24 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-09-05 (later) — discovery-flow bugs 22 & 23 fixed
+
+Fixed and pushed on top of the T24–T30 branch:
+- **Item 22** — `manualCenter` (panned-to location) now persists in
+  `useExplorerPreferences` alongside the map viewport, so a returning diver keeps
+  searching the area they were exploring and an added site reappears.
+- **Item 23** — `pageshow`/`event.persisted` listener in `dive-site-explorer.tsx`
+  forces one clean re-fetch on bfcache restore.
+
+11 new tests, `tsc`/lint/**1027 passing**/build all clean.
+
+**Still open** (see `plan.md` 24–26): 200-site truncation (24), no-coords
+"research further" affordance (25), and shore-access silence outside S. FL (26 —
+now understood as a *product judgement* that reverses a deliberate prior decision
+on the preview sheet, needs founder input, not a clear bug).
+
+---
+
 ## 2026-09-05 — deploy config + discovery-flow bug triage
 
 ### State of the repo
