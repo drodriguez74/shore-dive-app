@@ -6,28 +6,22 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
-## 2026-09-06 — discovery-flow items 24 & 25 (two branches, unmerged)
+## 2026-09-06 — discovery-flow cleanup (items 24 & 25) + PR #7 merged
 
-Two feature branches off `main` (`ddb65f1`), each with its own PR to open:
+**Accomplishments**
+- **T24–T30 merged to `main`** (PR #7, `ddb65f1`); other 3 feature branches were already merged.
+- Fixed discovery items **27/28/29** (in `main`): panel unmounting on add, string-coord pin bug, web-search re-runnable at any manual location.
+- **Item 24** — branch `feature/task-24-nearest-sites-search`: `search-nearby` returned an *alphabetical* slice in dense areas. New `search_sites_near` SQL fn (migration `0016`) + `listSitesNear()`; +10 tests.
+- **Item 25** — branch `feature/task-25-no-coords-affordance`: no-coords candidates get a Google Maps link + manual lat/long entry; +5 tests.
 
-**`feature/task-24-nearest-sites-search`** — `search-nearby` truncated at 200
-sites *and* the 200 kept were an alphabetical slice (`ORDER BY name`), not the
-nearest. New migration `0016_search_sites_near.sql` (SQL function, radius +
-distance in SQL, haversine matching `distance.ts`) + `queries.ts` `listSitesNear()`
-replacing the bounding-box path. **Migration not applied — manual + merge
-blocker.** Also: CLAUDE.md comment-brevity + concise-response rules. +10 tests.
+**Decisions**
+- Item 29: re-runnable web search chosen over persisting candidates / a per-area cache (cost bounded by the existing daily cap).
+- Comment brevity + concise LLM responses now codified in CLAUDE.md.
 
-**`feature/task-25-no-coords-affordance`** — a discovery candidate with no
-coordinates was a dead greyed button. Now: a "Look up on Google Maps" link + a
-reveal-on-demand lat/long entry that adds the site once the diver supplies real
-coordinates. `site-discovery-candidates.tsx` + new test (+5). No migration.
-
-Both: `tsc`/lint/build clean. The two branches don't touch the same files (24 =
-queries/route/explorer map-note; 25 = candidates component only) so merge order
-doesn't matter.
-
-**Last open discovery item:** `plan.md` 26 — shore-access copy on the preview
-sheet outside S. FL. Founder judgement call, not code.
+**Next**
+1. Apply migration `0016` (manual), then merge branch 24 and branch 25 (no file overlap, any order).
+2. `plan.md` item **26** — shore-access copy on the preview sheet outside S. FL. Founder judgement, not code.
+3. `NEXT_PUBLIC_LDS_CLAIM_EMAIL` → real inbox; optional dead-code sweep (`listSitesInBounds` + 2 distance helpers now unused after 24 merges).
 
 ---
 
