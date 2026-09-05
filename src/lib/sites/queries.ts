@@ -587,6 +587,98 @@ async function fetchLatestHazardBySite(
   };
 }
 
+export interface ListSitesNearParams {
+  latitude: number;
+  longitude: number;
+  /** Search radius in miles. Must be finite and > 0. */
+  radiusMiles: number;
+  /** Max rows to return. Clamped to `[1, MAX_SITE_QUERY_LIMIT]`; defaults to `DEFAULT_SITE_QUERY_LIMIT`. */
+  limit?: number;
+}
+
+/**
+ * Sites within `radiusMiles` of a point, ordered nearest-first and
+ * radius-filtered server-side by the `search_sites_near` SQL function
+ * (`0016_search_sites_near.sql`, plan.md item 24). The counterpart to
+ * `listSitesInBounds` when a real centre + radius exist rather than a
+ * viewport — the `search-nearby` route's old bounding-box + `ORDER BY name
+ * LIMIT 200` path returned an alphabetical, not nearest, slice in dense
+ * areas. Same `.in("site_id", ...)` hazard companion read and
+ * `normalizeMarker` as every other map query; fails toward
+ * `{ sites: [], truncated: false, error }`, never throws.
+ */
+export async function listSitesNear(params: ListSitesNearParams): Promise<ListSitesResult> {
+  const { latitude, longitude, radiusMiles } = params;
+  const limit = clampLimit(params.limit);
+
+  // Validate before the round trip: a NaN/out-of-range argument reaches
+  // Postgres as a zero-row query, indistinguishable from "nothing here".
+  if (
+    ![latitude, longitude, radiusMiles].every((value) => typeof value === "number" && Number.isFinite(value)) ||
+    radiusMiles <= 0 ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    const message = "Invalid nearby search: latitude, longitude and a positive radiusMiles are required.";
+    logger.warn("sites.near_invalid", { latitude, longitude, radiusMiles });
+    return { sites: [], truncated: false, error: message };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    const sitesResult = await supabase.rpc("search_sites_near", {
+      center_lat: latitude,
+      center_lng: longitude,
+      radius_miles: radiusMiles,
+      max_rows: limit,
+    });
+
+    if (sitesResult.error) throw sitesResult.error;
+
+    // No generated DB types for `.rpc()`; the SQL function returns the
+    // `SITE_MARKER_COLUMNS` shape (plus an ignored `distance_miles`).
+    const siteRows = (sitesResult.data ?? []) as RawSiteMarkerRow[];
+    const sitesTruncated = siteRows.length >= limit;
+
+    const { latestHazardBySiteId, truncated: hazardsTruncated } = await fetchLatestHazardBySite(
+      supabase,
+      siteRows.map((row) => row.id),
+    );
+
+    const truncated = sitesTruncated || hazardsTruncated;
+    if (truncated) {
+      logger.warn("sites.near_truncated", {
+        siteCount: siteRows.length,
+        siteLimit: limit,
+        hazardLimit: HAZARD_FLAG_QUERY_LIMIT,
+        sitesTruncated,
+        hazardsTruncated,
+        latitude,
+        longitude,
+        radiusMiles,
+      });
+    }
+
+    const sites: SiteMarker[] = siteRows.map((row) =>
+      normalizeMarker(row, latestHazardBySiteId.has(row.id), latestHazardBySiteId.get(row.id) ?? null),
+    );
+
+    return { sites, truncated, error: null };
+  } catch (error) {
+    logger.error("sites.near_failed", {
+      latitude,
+      longitude,
+      radiusMiles,
+      limit,
+      error: errorMessage(error),
+    });
+    return { sites: [], truncated: false, error: errorMessage(error) };
+  }
+}
+
 export interface SiteDetailResult {
   site: Site | null;
   hazards: HazardReport[];

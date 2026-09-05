@@ -6,6 +6,34 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-09-06 — item 24: nearest-N site search
+
+T24–T30 branch **merged to `main`** (PR #7, `ddb65f1`); the other three feature
+branches were already fully merged.
+
+Then, on branch `feature/task-24-nearest-sites-search`:
+`search-nearby` truncated at 200 sites in dense areas — and worse, the 200 kept
+were an **alphabetical** slice (`listSitesInBounds` = `ORDER BY name LIMIT 200`),
+then radius-filtered in JS. A diver could miss a site a few hundred yards away.
+
+- **Migration `0016_search_sites_near.sql`** — SQL function doing the radius cut
+  + distance order server-side (haversine matching `distance.ts`, `SECURITY
+  INVOKER`, granted anon/authenticated). **NOT APPLIED — manual + merge blocker.**
+- `queries.ts` `listSitesNear()` replaces `listSitesInBounds` + JS sort in
+  `search-nearby/route.ts`. Cap stays 200 (real Next/undici large-body bug) but
+  now clips the *farthest*; truncation note added to the map, not just the list.
+- `listSitesInBounds` / `boundingBoxForRadius` / `sortByDistanceWithinRadius` are
+  now unused by app code (kept — tested, and the right primitive for a future
+  viewport read). Flag for a cleanup pass if desired.
+
+CLAUDE.md updated: comment-brevity rule + concise-response note (founder ask).
+10 new tests. `tsc`/lint/**1042 passing**/build clean.
+
+**Still open** (`plan.md` 25–26): no-coords candidate affordance, shore-access
+copy outside S. FL (founder judgement).
+
+---
+
 ## 2026-09-05 (later still) — "Add to map" bugs 27, 28, 29 fixed
 
 Founder live-testing the discovery flow: after discovering sites and clicking

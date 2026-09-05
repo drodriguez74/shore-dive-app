@@ -715,6 +715,12 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
           isSignedIn={isSignedIn}
           onLdsSubmitted={(marker) => setLdsSubmitted((prev) => [...prev, marker])}
         />
+        {resultsTruncated && (
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+            Showing the closest sites — more exist in this area than fit one search. Narrow the radius for the full
+            picture.
+          </p>
+        )}
       </div>
 
       {webSearchAvailableHere && (

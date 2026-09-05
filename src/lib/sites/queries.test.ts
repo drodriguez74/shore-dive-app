@@ -8,6 +8,7 @@ import {
   getSiteWithHazards,
   listLdsStatusMarkers,
   listSitesInBounds,
+  listSitesNear,
   listSitesWithHazardFlag,
 } from "./queries";
 import { createClient } from "@/lib/supabase/server";
@@ -69,7 +70,14 @@ function createRecordingClient(results: Record<string, CannedResult> = {}) {
     return builder;
   });
 
-  const client = { from } as unknown as Awaited<ReturnType<typeof createClient>>;
+  // `.rpc(name, args)` is awaited directly in queries.ts (no `.returns()`),
+  // resolving to `{ data, error }`. Canned result keyed as `rpc:<name>`.
+  const rpc = vi.fn((name: string, args: unknown) => {
+    calls.push({ table: name, method: "rpc", args: [args] });
+    return Promise.resolve(results[`rpc:${name}`] ?? { data: [], error: null });
+  });
+
+  const client = { from, rpc } as unknown as Awaited<ReturnType<typeof createClient>>;
   return {
     client,
     calls,
@@ -347,6 +355,98 @@ describe("listSitesInBounds", () => {
 
       expect(result).toEqual({ sites: [], truncated: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" });
     });
+  });
+});
+
+// ---------------------------------------------------------------------
+// listSitesNear — nearest-first, radius-filtered read via the
+// search_sites_near RPC (0016 / plan.md item 24).
+// ---------------------------------------------------------------------
+
+const NEAR = { latitude: 26.7, longitude: -80.1, radiusMiles: 25 };
+
+describe("listSitesNear", () => {
+  it("calls the search_sites_near RPC with the centre, radius and clamped limit", async () => {
+    const recorder = useClient({ "rpc:search_sites_near": { data: [siteRow()], error: null } });
+
+    await listSitesNear({ ...NEAR, limit: 50 });
+
+    const [call] = recorder.callsFor("search_sites_near", "rpc");
+    expect(call.args[0]).toEqual({
+      center_lat: 26.7,
+      center_lng: -80.1,
+      radius_miles: 25,
+      max_rows: 50,
+    });
+  });
+
+  it("returns the RPC rows as markers, trusting its distance order (no JS re-sort)", async () => {
+    useClient({
+      "rpc:search_sites_near": {
+        data: [siteRow({ id: "near", name: "Zzz Reef" }), siteRow({ id: "far", name: "Aaa Reef" })],
+        error: null,
+      },
+    });
+
+    const result = await listSitesNear(NEAR);
+
+    expect(result.error).toBeNull();
+    expect(result.sites.map((s) => s.id)).toEqual(["near", "far"]);
+  });
+
+  it("coerces PostgREST numeric-string coordinates to numbers", async () => {
+    useClient({
+      "rpc:search_sites_near": { data: [siteRow({ latitude: "26.7753", longitude: "-80.0431" })], error: null },
+    });
+
+    const [site] = (await listSitesNear(NEAR)).sites;
+
+    expect(site.latitude).toBe(26.7753);
+    expect(typeof site.longitude).toBe("number");
+  });
+
+  it("sets truncated when the RPC returns a full page", async () => {
+    useClient({ "rpc:search_sites_near": { data: siteRows(10), error: null } });
+
+    const result = await listSitesNear({ ...NEAR, limit: 10 });
+
+    expect(result.truncated).toBe(true);
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it("does not set truncated on a short page", async () => {
+    useClient({ "rpc:search_sites_near": { data: siteRows(3), error: null } });
+
+    expect((await listSitesNear({ ...NEAR, limit: 10 })).truncated).toBe(false);
+  });
+
+  it.each([
+    ["non-finite latitude", { ...NEAR, latitude: Number.NaN }],
+    ["zero radius", { ...NEAR, radiusMiles: 0 }],
+    ["out-of-range longitude", { ...NEAR, longitude: 999 }],
+  ])("rejects %s before any round trip", async (_label, params) => {
+    const recorder = useClient();
+
+    const result = await listSitesNear(params);
+
+    expect(result.sites).toEqual([]);
+    expect(result.error).toMatch(/Invalid nearby search/);
+    expect(recorder.callsFor("search_sites_near", "rpc")).toHaveLength(0);
+  });
+
+  it("returns { sites: [], error }, never throws, when the RPC fails", async () => {
+    useClient({ "rpc:search_sites_near": { data: null, error: postgrestError("function missing") } });
+
+    const result = await listSitesNear(NEAR);
+
+    expect(result).toEqual({ sites: [], truncated: false, error: "function missing" });
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns { sites: [], error }, never throws, when createClient itself throws", async () => {
+    mockCreateClient.mockRejectedValue(new Error("Missing NEXT_PUBLIC_SUPABASE_URL"));
+
+    expect((await listSitesNear(NEAR)).error).toBe("Missing NEXT_PUBLIC_SUPABASE_URL");
   });
 });
 
