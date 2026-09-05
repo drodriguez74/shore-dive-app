@@ -25,6 +25,7 @@ Excludes anything already resolved this session (`T24`–`T29`) and anything exp
 ## Blocked — pending a founder decision; not assigned to agents
 
 - [ ] Privacy policy page (`/login` link) — needs a go/no-go on drafting now vs. waiting until real users are imminent
+- [ ] Voice-transcription privacy copy review (`plan.md` item 20) — **pinned by founder 2026-09-05 until prod-ready**; shipped honest-disclosure copy stays in the meantime
 - [ ] Real moderator-role column + full admin-route access control — needs a go/no-go on whether launch is the right trigger
 - [ ] Safe-Return liability / business-entity decision (LLC formation, a legal-aid consult)
 - [ ] Webcam legal-review gate (`THREAT_MODEL.md` §9) — blocks any real shop-outreach solicitation for Task 17/19
