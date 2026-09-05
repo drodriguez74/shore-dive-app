@@ -4,6 +4,18 @@ import type { UseSafeReturnTimerResult } from "@/hooks/use-safe-return-timer";
 import type { UsePostDivePromptTriggerResult } from "@/hooks/use-post-dive-prompt-trigger";
 import { PostDivePrompt } from "@/components/post-dive-prompt";
 
+/**
+ * The green "checked in" confirmation is the single most likely place in the
+ * app for a diver to read a guarantee that isn't there: nothing in the timer
+ * distinguishes "I surfaced" from "we both surfaced" (`plan.md`, "Safety
+ * first" v5 addendum — the timer is silently solo-only, and v1 deliberately
+ * stays one-device-per-countdown). `DisclaimerNotice` states that limit
+ * before the timer starts and again while it runs, but neither variant
+ * renders here, so the point would drop out at exactly the moment it's
+ * easiest to misread. Kept to one plain line: this screen's job is to
+ * confirm and get out of the way, not to re-run the full disclosure.
+ */
+
 interface CheckedInViewProps {
   timer: UseSafeReturnTimerResult;
   /**
@@ -25,6 +37,9 @@ export function CheckedInView({ timer, postDivePrompt }: CheckedInViewProps) {
         <p className="text-lg font-semibold text-emerald-800 dark:text-emerald-200">
           Checked in — nice dive
           {timer.label ? `, ${timer.label}` : ""}.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-emerald-800/80 dark:text-emerald-200/80">
+          This confirms you checked in. It does not confirm your buddy did.
         </p>
       </div>
 

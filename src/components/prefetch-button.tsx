@@ -92,6 +92,16 @@ export function PrefetchButton({
         data: { mock: true, note: "Placeholder bundle — no real offline bundle backend yet (T12.1)." },
         cachedAt: new Date(),
       });
+      // "success" here means "the verify → gate → write interaction shape
+      // ran correctly," not "this site is actually usable offline" — see
+      // the render below, which says so explicitly. Found in the
+      // 2026-08-13 UX audit: the success label used to read "Cached for
+      // offline use," identical to what a real cache would say, on an app
+      // whose own core pillar promises this works with zero cellular
+      // coverage. A diver trusting that literally at the water's edge,
+      // with no real bundle behind it, is exactly the failure mode
+      // CLAUDE.md's "never let a UI imply a guarantee the system can't
+      // back" rule exists to prevent.
       setStatus("success");
     } catch (error) {
       // No structured logger wired up yet in this codebase — following the
@@ -106,21 +116,34 @@ export function PrefetchButton({
   }
 
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <button
-        type="button"
-        onClick={handlePrefetch}
-        disabled={status === "loading"}
-        className="rounded-md bg-sky-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {status === "loading" ? "Prefetching…" : "Prefetch Now"}
-      </button>
-      {status === "success" && (
-        <span className="text-sm text-emerald-700 dark:text-emerald-400">Cached for offline use.</span>
-      )}
-      {status === "error" && (
-        <span className="text-sm text-red-700 dark:text-red-400">Couldn&apos;t cache this site — try again.</span>
-      )}
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handlePrefetch}
+          disabled={status === "loading"}
+          className="rounded-md bg-sky-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {status === "loading" ? "Prefetching…" : "Prefetch Now"}
+        </button>
+        {status === "success" && (
+          <span className="text-sm text-amber-700 dark:text-amber-400">
+            Demo only — no real site data was cached.
+          </span>
+        )}
+        {status === "error" && (
+          <span className="text-sm text-red-700 dark:text-red-400">Couldn&apos;t cache this site — try again.</span>
+        )}
+      </div>
+      {/* Honest disclosure shown before the click too, not just after —
+          the real offline-bundle backend (Task 12) doesn't exist yet, so
+          this button currently only exercises the verify-then-write
+          interaction shape against a placeholder payload. Don't rely on
+          this for an actual dive with no signal. */}
+      <p className="text-xs text-zinc-400 dark:text-zinc-500">
+        Real offline bundles aren&apos;t built yet — this currently caches a placeholder, not this site&apos;s
+        real data.
+      </p>
     </div>
   );
 }

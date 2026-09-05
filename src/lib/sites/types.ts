@@ -218,4 +218,19 @@ export interface SiteMarker {
    * reasoning `shore_access` itself earned a place here in 0012. */
   shore_access_method?: ShoreAccessMethod | null;
   hasHazardReport: boolean;
+  /**
+   * `hazard_reports.created_at` of the *most recent* report on file for this
+   * site, or `null`/absent when `hasHazardReport` is `false` (nothing to
+   * date) — plan.md's Task 13 v5 addition, feeding
+   * `src/lib/sites/hazard-recency.ts`'s three-tier classification so the map
+   * pin can recede a stale hazard fill rather than weighting every report
+   * (a 2-hour-old one and a 3-week-old one) identically. Optional so
+   * existing `SiteMarker` literals (mock/demo data, other components' test
+   * fixtures) still compile untouched — the same additive-field convention
+   * `shore_access`/`research_summary_updated_at` above already established
+   * in this file. Present on the marker itself (not detail-only) because
+   * pin rendering is exactly what needs it per-pin, the same reasoning
+   * `shore_access` earned its own place here.
+   */
+  latestHazardReportAt?: string | null;
 }

@@ -285,7 +285,7 @@ function normalizeSite(row: RawSiteRow): Site {
  * the two queries can't select different columns. Before this they held two
  * hand-maintained copies of the same object literal, i.e. exactly the drift
  * that constant was introduced to prevent, one layer down. */
-function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean): SiteMarker {
+function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean, latestHazardReportAt: string | null): SiteMarker {
   return {
     id: row.id,
     name: row.name,
@@ -299,6 +299,7 @@ function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean): SiteM
     shore_access: row.shore_access ?? null,
     shore_access_method: row.shore_access_method ?? null,
     hasHazardReport,
+    latestHazardReportAt,
   };
 }
 
@@ -357,11 +358,22 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
       // looking safer than reality — the wrong direction. That's precisely
       // why hitting this limit also sets `truncated` below, rather than being
       // quietly tolerated.
+      //
+      // `created_at` + `.order(desc)` (T13 v5 addition): this used to select
+      // only `site_id` to derive a plain boolean flag. Now it also derives
+      // `latestHazardReportAt` per site for pin-level recency — ordering
+      // newest-first means the *first* row seen for a given `site_id` while
+      // building the map below is always its most recent report, and (as a
+      // side benefit) a truncation now preferentially keeps the newest
+      // reports system-wide rather than an arbitrary unordered slice, same
+      // "lose the tail of stale history, never today's report" direction
+      // `getSiteWithHazards` already established for the single-site read.
       supabase
         .from("hazard_reports")
-        .select("site_id")
+        .select("site_id, created_at")
+        .order("created_at", { ascending: false })
         .limit(HAZARD_FLAG_QUERY_LIMIT)
-        .returns<{ site_id: string }[]>(),
+        .returns<{ site_id: string; created_at: string }[]>(),
     ]);
 
     if (sitesResult.error) throw sitesResult.error;
@@ -369,7 +381,7 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
 
     const siteRows = sitesResult.data ?? [];
     const hazardRows = hazardsResult.data ?? [];
-    const hazardSiteIds = new Set(hazardRows.map((row) => row.site_id));
+    const latestHazardBySiteId = latestHazardTimestampBySite(hazardRows);
 
     const sitesTruncated = siteRows.length >= DEFAULT_SITE_QUERY_LIMIT;
     const hazardsTruncated = hazardRows.length >= HAZARD_FLAG_QUERY_LIMIT;
@@ -386,7 +398,9 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
       });
     }
 
-    const sites: SiteMarker[] = siteRows.map((row) => normalizeMarker(row, hazardSiteIds.has(row.id)));
+    const sites: SiteMarker[] = siteRows.map((row) =>
+      normalizeMarker(row, latestHazardBySiteId.has(row.id), latestHazardBySiteId.get(row.id) ?? null),
+    );
 
     return { sites, truncated, error: null };
   } catch (error) {
@@ -477,7 +491,7 @@ export async function listSitesInBounds(params: ListSitesInBoundsParams): Promis
     const siteRows = sitesResult.data ?? [];
     const sitesTruncated = siteRows.length >= limit;
 
-    const { hazardSiteIds, truncated: hazardsTruncated } = await fetchHazardSiteIds(
+    const { latestHazardBySiteId, truncated: hazardsTruncated } = await fetchLatestHazardBySite(
       supabase,
       siteRows.map((row) => row.id),
     );
@@ -497,7 +511,9 @@ export async function listSitesInBounds(params: ListSitesInBoundsParams): Promis
       });
     }
 
-    const sites: SiteMarker[] = siteRows.map((row) => normalizeMarker(row, hazardSiteIds.has(row.id)));
+    const sites: SiteMarker[] = siteRows.map((row) =>
+      normalizeMarker(row, latestHazardBySiteId.has(row.id), latestHazardBySiteId.get(row.id) ?? null),
+    );
 
     return { sites, truncated, error: null };
   } catch (error) {
@@ -514,30 +530,59 @@ export async function listSitesInBounds(params: ListSitesInBoundsParams): Promis
 }
 
 /**
- * `hazard_reports.site_id`s for a known set of sites. Throws on a Supabase
- * error so the caller's own try/catch owns the single error-shaping path —
- * this helper is internal and never called outside one.
+ * Reduces a (newest-first-ordered) list of `{ site_id, created_at }` rows
+ * down to one timestamp per site — the most recent report on file for that
+ * site. Relies on the caller having already ordered the rows `created_at`
+ * descending: the *first* row seen for a given `site_id` is then always its
+ * latest, so this is a single pass with no per-row comparison needed. Shared
+ * by both hazard-flag call sites (`listSitesWithHazardFlag` and
+ * `fetchLatestHazardBySite` below) so the reduction logic can't drift
+ * between them.
  */
-async function fetchHazardSiteIds(
+function latestHazardTimestampBySite(rows: { site_id: string; created_at: string }[]): Map<string, string> {
+  const latest = new Map<string, string>();
+  for (const row of rows) {
+    if (!latest.has(row.site_id)) latest.set(row.site_id, row.created_at);
+  }
+  return latest;
+}
+
+/**
+ * `hazard_reports.site_id` → most recent `created_at`, for a known set of
+ * sites. Throws on a Supabase error so the caller's own try/catch owns the
+ * single error-shaping path — this helper is internal and never called
+ * outside one.
+ *
+ * Was `fetchHazardSiteIds` (T13 v5 addition renamed it): it used to return
+ * only a `Set<string>` of site ids with any report on file, enough for the
+ * boolean `hasHazardReport` flag. Now selects `created_at` too and returns a
+ * `Map` of latest timestamp per site instead — `hasHazardReport` is still
+ * derivable from it (`.has(id)`), so no caller lost information, and
+ * `normalizeMarker` now has what it needs for pin-level recency.
+ */
+async function fetchLatestHazardBySite(
   supabase: Awaited<ReturnType<typeof createClient>>,
   siteIds: string[],
-): Promise<{ hazardSiteIds: Set<string>; truncated: boolean }> {
+): Promise<{ latestHazardBySiteId: Map<string, string>; truncated: boolean }> {
   // No sites means no possible hazard rows — skip the round trip entirely
   // rather than issuing an `in.()` against an empty list.
-  if (siteIds.length === 0) return { hazardSiteIds: new Set(), truncated: false };
+  if (siteIds.length === 0) return { latestHazardBySiteId: new Map(), truncated: false };
 
   const hazardsResult = await supabase
     .from("hazard_reports")
-    .select("site_id")
+    .select("site_id, created_at")
     .in("site_id", siteIds)
+    // Newest first — see `latestHazardTimestampBySite`'s own comment for why
+    // the ordering here is load-bearing, not cosmetic.
+    .order("created_at", { ascending: false })
     .limit(HAZARD_FLAG_QUERY_LIMIT)
-    .returns<{ site_id: string }[]>();
+    .returns<{ site_id: string; created_at: string }[]>();
 
   if (hazardsResult.error) throw hazardsResult.error;
 
   const rows = hazardsResult.data ?? [];
   return {
-    hazardSiteIds: new Set(rows.map((row) => row.site_id)),
+    latestHazardBySiteId: latestHazardTimestampBySite(rows),
     truncated: rows.length >= HAZARD_FLAG_QUERY_LIMIT,
   };
 }
@@ -650,8 +695,14 @@ interface RawLdsStatusRow {
 
 /** Every column `LdsStatusRow` needs — named explicitly rather than `select("*")`,
  * same reasoning as `SITE_DETAIL_COLUMNS`: a schema/code mismatch should fail
- * loudly here, not silently return whatever columns happen to exist. */
-const LDS_STATUS_COLUMNS =
+ * loudly here, not silently return whatever columns happen to exist.
+ *
+ * Exported (Task 16, 2026-08-20) so `src/app/api/lds/submit/route.ts` selects
+ * the inserted row back with exactly this column list — that route hands the
+ * new row straight to the client to merge into the same state this read
+ * populates, so the two shapes have to stay identical by construction, not by
+ * two literals happening to match. */
+export const LDS_STATUS_COLUMNS =
   "id, site_id, name, latitude, longitude, status, provenance, last_verified_at, created_by, created_at";
 
 /** Same ceiling convention as `MAX_SITE_QUERY_LIMIT` — this table is small

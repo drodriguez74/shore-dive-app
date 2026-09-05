@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 /**
@@ -68,7 +69,10 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
   if (submitState === "success") {
     return (
       <p className="text-sm text-emerald-700 dark:text-emerald-400">
-        Added {siteName} to your dive plan for {plannedDate}.
+        Added {siteName} to your dive plan for {plannedDate}.{" "}
+        <Link href="/dive-plans" className="font-medium underline underline-offset-2 hover:no-underline">
+          View your dive plans →
+        </Link>
       </p>
     );
   }
@@ -90,7 +94,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
           value={plannedDate}
           onChange={(event) => setPlannedDate(event.target.value)}
           required
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-depth-border dark:bg-depth-2"
         />
       </label>
 
@@ -103,7 +107,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
           value={plannedWindow}
           onChange={(event) => setPlannedWindow(event.target.value)}
           maxLength={60}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-depth-border dark:bg-depth-2"
           placeholder="Morning, low tide"
         />
       </label>
@@ -117,7 +121,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
           value={divingWith}
           onChange={(event) => setDivingWith(event.target.value)}
           maxLength={120}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-depth-border dark:bg-depth-2"
           placeholder="Buddy's name"
         />
       </label>

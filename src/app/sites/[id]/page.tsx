@@ -5,12 +5,13 @@ import { logger } from "@/lib/sites/logger";
 import { SITE_TYPE_LABELS } from "@/lib/sites/site-type-labels";
 import { ProvenanceBadge } from "@/components/provenance-badge";
 import { LegalAccessBadge } from "@/components/legal-access-badge";
+import { HazardRecencyBadge } from "@/components/hazard-recency-badge";
 import { PrefetchButton } from "@/components/prefetch-button";
-import { PretripChecklist } from "@/components/pretrip-checklist";
 import { SiteLocationMap } from "@/components/site-location-map";
 import { SiteDiveProfile } from "@/components/site-dive-profile";
 import { SiteSources } from "@/components/site-sources";
 import { SiteResearchSummary } from "@/components/site-research-summary";
+import { SiteTideLink } from "@/components/site-tide-link";
 import type { SiteMarker } from "@/lib/sites/types";
 import { AddToDivePlanForm } from "./add-to-dive-plan-form";
 
@@ -23,9 +24,12 @@ import { AddToDivePlanForm } from "./add-to-dive-plan-form";
  * data load first, auth check only for the part of the page that actually
  * needs it), not a full route guard on the whole page.
  *
- * Also the real home for `PrefetchButton`/`PretripChecklist` (T12.6/T12.7) —
- * built and correct, previously mounted by zero routes per TASKS.md's own
- * downgrade note.
+ * Also the real home for `PrefetchButton` (T12.6) — built and correct,
+ * previously mounted by zero routes per TASKS.md's own downgrade note.
+ * `PretripChecklist` (T12.7) is NOT mounted here (moved 2026-08-13, see
+ * scope note below) — it lives on `/dive-plans` now, the real cross-site
+ * "your whole plan" view this page's own prior comment named as its
+ * eventual home.
  *
  * T21.22 enriched this page for the founder's actual reader: "I want to know
  * of all dive sites as I may end up on a boat charter going there. Or
@@ -40,31 +44,31 @@ import { AddToDivePlanForm } from "./add-to-dive-plan-form";
  * `src/lib/sites/{shore-access,dive-suitability}.ts` first.
  *
  * Scope notes (read before extending):
- * - Tide-station link (plan.md's "optional/bonus" item) is NOT built here —
- *   explicitly scoped out of this pass by the task brief.
- * - `PretripChecklist` is mounted with an explicit empty plan (`plan={[]}`).
- *   An earlier version of this page omitted the prop and got a hardcoded
- *   `MOCK_PLAN` default for free, which meant every single site's detail
- *   page showed "La Jolla Cove diving today" / "Shaw's Cove diving today"
- *   regardless of which real site you were looking at (caught 2026-08-09
- *   investigating a founder-reported UX bug — same root cause as the mock
- *   block that was also on the homepage). `MOCK_PLAN` itself was removed
- *   2026-08-10 (`plan` now defaults to `[]`), so this explicit prop is no
- *   longer strictly load-bearing — kept anyway, since this page always has
- *   real context (no real cross-site plan to show) and shouldn't rely on a
- *   component default to express that. The component's own
- *   `if (plan.length === 0) return null` already exists for exactly this
- *   case, so passing `[]` is enough to make it correctly disappear rather
- *   than needing a new prop or a rewrite. A real query of this user's
- *   `dive_plans` joined to `sites` is still a meaningfully bigger change (a
- *   cross-site "your whole plan" view) than this page's own single-site
- *   scope, and remains a natural follow-up now that the table exists
- *   (`supabase/migrations/0007_dive_plans.sql`) — just no longer standing in
- *   for real data with something that looks real but isn't.
+ * - Tide-station link (plan.md's "optional/bonus" item) IS built here —
+ *   `SiteTideLink`, mounted below. It renders nothing for the (currently
+ *   large) majority of sites with no NOAA station nearby; see that
+ *   component's and `src/lib/tides/noaa-stations.ts`'s own headers for the
+ *   full reasoning (static station snapshot, link-out only, no in-app tide
+ *   data).
+ * - `PretripChecklist` used to be mounted here with an explicit empty plan
+ *   (`plan={[]}`) — meaning it rendered nothing, ever, on this page (its own
+ *   `if (plan.length === 0) return null`). An earlier version of this page
+ *   omitted the prop entirely and got a hardcoded `MOCK_PLAN` default for
+ *   free, which meant every single site's detail page showed "La Jolla Cove
+ *   diving today" / "Shaw's Cove diving today" regardless of which real site
+ *   you were looking at (caught 2026-08-09, same root cause as the mock
+ *   block that was also on the homepage); `MOCK_PLAN` was removed
+ *   2026-08-10, leaving the always-empty, always-invisible mount behind as
+ *   dead code — found in the 2026-08-13 UX audit (`TASKS.md` T25). **Fixed
+ *   the same day**: `/dive-plans` (new) is the real cross-site "your whole
+ *   plan" view this note used to describe as a future follow-up, and it's
+ *   the one place `PretripChecklist` mounts now, fed real
+ *   `dive_plans` rows via `listDivePlansForUser()`. Nothing to mount here
+ *   anymore — a single site's own page has no "whole plan" to show.
  * - The pin-tap flow's designed "compact preview bottom sheet" (before
- *   landing here) is not built — `creative/flows/map-exploration.md` names
- *   it nice-to-have, not required; a direct link from the map pin is this
- *   pass's scope.
+ *   landing here) IS built — `src/components/site-pin-preview-sheet.tsx`,
+ *   wired into `site-map.tsx`. This note previously said otherwise; that was
+ *   stale by the time of the 2026-08-13 restyle pass and is corrected here.
  */
 
 export const dynamic = "force-dynamic";
@@ -83,10 +87,10 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       <PageShell>
         <NoticeCard title="Supabase is not configured yet">
           <p>
-            This page needs <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
-            and <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> set
-            in <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">.env.local</code> — copy{" "}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">.env.local.example</code> and fill in a real
+            This page needs <code className="rounded bg-zinc-100 px-1 dark:bg-depth-2">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
+            and <code className="rounded bg-zinc-100 px-1 dark:bg-depth-2">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> set
+            in <code className="rounded bg-zinc-100 px-1 dark:bg-depth-2">.env.local</code> — copy{" "}
+            <code className="rounded bg-zinc-100 px-1 dark:bg-depth-2">.env.local.example</code> and fill in a real
             Supabase project&apos;s values.
           </p>
         </NoticeCard>
@@ -151,6 +155,12 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     shore_entry_id: site.shore_entry_id,
     shore_distance_yards: site.shore_distance_yards,
     hasHazardReport: hazards.length > 0,
+    // `hazards` is already ordered newest-first (`getSiteWithHazards`'s own
+    // `.order("created_at", { ascending: false })`), so the first element is
+    // this site's most recent report — feeds the pin's own stale/fresh fill
+    // via `SiteLocationMap`, same recency signal the hazard-report list
+    // below renders as text via `HazardRecencyBadge`.
+    latestHazardReportAt: hazards[0]?.created_at ?? null,
   };
 
   return (
@@ -164,7 +174,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <ProvenanceBadge provenance={site.provenance} />
           <LegalAccessBadge status={site.legal_access_status} />
-          <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="inline-flex items-center rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:border-depth-border dark:bg-depth-2 dark:text-zinc-300">
             {SITE_TYPE_LABELS[site.site_type] ?? SITE_TYPE_LABELS.unclassified}
           </span>
         </div>
@@ -205,6 +215,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
       <SiteDiveProfile site={site} />
 
+      <SiteTideLink site={{ latitude: site.latitude, longitude: site.longitude }} />
+
       <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">
           Hazard reports {hazards.length > 0 ? `(${hazards.length})` : ""}
@@ -221,11 +233,16 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
                 key={hazard.id}
                 className="rounded-lg bg-amber-500/5 border border-amber-600/20 p-3 dark:border-amber-400/20"
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <ProvenanceBadge provenance={hazard.provenance} />
-                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {new Date(hazard.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                  </span>
+                  {/* Staleness treatment (plan.md's Task 13 v5 addition) — a
+                      raw `toLocaleDateString()` used to sit here with no
+                      recency weighting at all, so a 3-week-old report and a
+                      2-hour-old one read identically. Same freshness/
+                      staleness language `LastVerifiedBadge` already
+                      established elsewhere in this app, extended to a third
+                      "aging" tier per `hazard-recency.ts`'s own reasoning. */}
+                  <HazardRecencyBadge reportedAt={hazard.created_at} />
                 </div>
                 <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-300">{hazard.description}</p>
               </li>
@@ -251,8 +268,6 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         </p>
         <PrefetchButton siteId={site.id} siteName={site.name} />
       </section>
-
-      <PretripChecklist plan={[]} />
 
       <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">Dive plan</h2>
@@ -301,7 +316,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 function NoticeCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700 dark:border-depth-border dark:bg-depth-1 dark:text-zinc-300">
       <h2 className="font-semibold text-black dark:text-zinc-50">{title}</h2>
       <div className="mt-1 flex flex-col gap-2">{children}</div>
     </div>

@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/webcam-discovery/logger";
 import { DiscoveryForm } from "./discovery-form";
+
+// Same cheap, immediate mitigation as
+// `src/app/moderation/camera-sources/page.tsx`: this route also gates on
+// "signed in," not "is a moderator" (plan.md's Resolved Decision #4).
+// noindex/nofollow keeps it out of search results while the real fix (a
+// moderator-role column + route gate) is pending — it does not gate access.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 /**
  * T19.1 manual-trigger surface for the webcam candidate-discovery

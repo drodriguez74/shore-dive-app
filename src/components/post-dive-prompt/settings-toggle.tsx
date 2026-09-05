@@ -18,7 +18,7 @@ export function PostDivePromptSettingsToggle({ className = "" }: { className?: s
 
   return (
     <div
-      className={`flex items-start justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 ${className}`}
+      className={`flex items-start justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1 ${className}`}
     >
       <div>
         <p className="text-sm font-medium text-black dark:text-zinc-50">Auto-prompt for dive conditions</p>
@@ -36,7 +36,7 @@ export function PostDivePromptSettingsToggle({ className = "" }: { className?: s
         disabled={!isHydrated}
         onClick={() => setAutoPromptEnabled(!autoPromptEnabled)}
         className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-          autoPromptEnabled ? "bg-sky-600 dark:bg-sky-500" : "bg-zinc-300 dark:bg-zinc-700"
+          autoPromptEnabled ? "bg-sky-600 dark:bg-sky-500" : "bg-zinc-300 dark:bg-depth-3"
         }`}
       >
         <span

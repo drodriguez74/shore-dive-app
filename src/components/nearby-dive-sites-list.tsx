@@ -163,7 +163,7 @@ export function NearbyDiveSitesList({
             <select
               value={radiusMiles}
               onChange={(event) => onRadiusChange(Number(event.target.value))}
-              className="min-h-[32px] rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+              className="min-h-[32px] rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-xs dark:border-depth-border dark:bg-depth-2 dark:text-zinc-200"
             >
               {radiusOptions.map((miles) => (
                 <option key={radiusLabel(miles)} value={miles}>
@@ -284,7 +284,7 @@ function SiteTypeFilterRow({
             className={`min-h-[28px] rounded-full border px-2.5 py-1 text-xs font-medium transition ${
               isActive
                 ? "border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500"
-                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-zinc-600"
+                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-depth-border dark:bg-depth-2 dark:text-zinc-400 dark:hover:border-zinc-600"
             }`}
           >
             {label}
@@ -329,7 +329,7 @@ function DifficultyFilterRow({
             className={`min-h-[28px] rounded-full border px-2.5 py-1 text-xs font-medium transition ${
               isActive
                 ? "border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500"
-                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-zinc-600"
+                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-depth-border dark:bg-depth-2 dark:text-zinc-400 dark:hover:border-zinc-600"
             }`}
           >
             {label}
@@ -373,7 +373,7 @@ function ShoreAccessFilterRow({
             className={`min-h-[28px] rounded-full border px-2.5 py-1 text-xs font-medium transition ${
               isActive
                 ? "border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-500"
-                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-zinc-600"
+                : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 dark:border-depth-border dark:bg-depth-2 dark:text-zinc-400 dark:hover:border-zinc-600"
             }`}
           >
             {SHORE_ACCESS_FILTER_LABEL[option]}

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -5,6 +6,17 @@ import type { CameraSource } from "@/lib/camera-sources/types";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/camera-sources/logger";
 import { ModerationQueueClient } from "./queue-client";
+
+// Cheap, immediate mitigation for the gap `SecurityGapNotice` below already
+// discloses: this route gates on "signed in," not "is a moderator" (no
+// moderator role exists yet — see that component's comment and
+// plan.md's Resolved Decision #4). noindex/nofollow keeps it out of search
+// results while that real fix (a moderator-role column + route gate) is
+// pending — it does not gate access; anyone with the URL can still reach
+// this page once signed in. Not a substitute for real authorization.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // T19.2 moderation-queue route — deliberately self-contained and NOT linked
 // from the homepage, same "real but not yet integrated" convention as

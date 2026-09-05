@@ -70,3 +70,17 @@ body {
   -webkit-background-clip: text;
   color: transparent;
 }
+
+/* Onboarding hero entrance — the one place DESIGN_SYSTEM.md §6 allows a
+   slightly more expressive animation. `motion-safe:` (Tailwind) already
+   gates this out under prefers-reduced-motion; see welcome-gate.tsx. */
+@keyframes shore-dive-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { DiveSiteExplorer } from "@/components/dive-site-explorer";
+import { WelcomeGate } from "@/components/onboarding/welcome-gate";
+import { SafeReturnHomeCard } from "@/components/safe-return-home-card";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
 import { listSitesWithHazardFlag, listLdsStatusMarkers } from "@/lib/sites/queries";
@@ -46,22 +48,37 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-depth-0">
+      {/* Additive overlay — server always renders the real homepage below
+          unchanged; this decides, client-side only, whether a first-time
+          signed-out visitor should also see the Welcome pitch on top. See
+          welcome-gate.tsx's own header for the full hydration-safety
+          reasoning. */}
+      <WelcomeGate isSignedIn={signedIn} />
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
             Shore Dive
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Real dive sites, plus LDS/fill-station pins (Task 16) — tap a pin for its provenance and
-            last-verified time.
+            Real shore-accessible dive sites, plus nearby air-fill shops — tap any pin for who verified it and
+            when.
           </p>
-          <Link
-            href="/safe-return"
-            className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
-          >
-            Safe-Return timer →
-          </Link>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <Link href="/fill-stations" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
+              Fill stations &amp; gear →
+            </Link>
+            {signedIn && (
+              <Link href="/dive-plans" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
+                My dive plans →
+              </Link>
+            )}
+          </div>
         </div>
+        {/* TASKS.md T26 (2026-08-13 UX audit): previously a single
+            unexplained text link ("Safe-Return timer →") — the single most
+            safety-relevant feature in the app deserved more than that. See
+            safe-return-home-card.tsx's own header for the full reasoning. */}
+        <SafeReturnHomeCard />
         {/* T21.6 (plan.md Resolved Decision #8): the map and the "Dive sites
             near you" list below used to be independent siblings here, each
             managing its own state — changing the list's radius selector

@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/sites/logger";
 import { classifyShoreAccess, shoreAccessFromStoredFields, type ShoreEntryPoint } from "@/lib/sites/shore-access";
 import { usesCoastalDistanceModel } from "@/lib/sites/water-access";
+import { hazardReportRecency } from "@/lib/sites/hazard-recency";
 import type { LatLng } from "@/lib/sites/distance";
 import {
   drawPinIcon,
@@ -174,11 +175,19 @@ function normalizeSiteType(siteType: SiteType): SiteType {
  * that file is not this task's to edit) and adds the coordinates, which matter
  * more on a single-site map than on a crowded one. */
 export function siteLocationDescription(site: SiteMarker): string {
+  // T13 v5 addition: mirrors `site-map.tsx`'s `siteAccessibleLabel` staleness
+  // qualifier — see that file's comment for why this needs to be text, not
+  // just a faded pin.
+  const hazardText = site.hasHazardReport
+    ? site.latestHazardReportAt && hazardReportRecency(site.latestHazardReportAt) === "stale"
+      ? "hazard report on file (dated)"
+      : "hazard report on file"
+    : null;
   const parts = [
     `${site.name} — map location`,
     `latitude ${site.latitude.toFixed(5)}, longitude ${site.longitude.toFixed(5)}`,
     site.provenance === "VERIFIED" ? "Verified entry" : "Community entry, not independently reviewed",
-    site.hasHazardReport ? "hazard report on file" : null,
+    hazardText,
     legalGlyphTier(site.legal_access_status) ? legalAccessLabel(site.legal_access_status) : null,
   ];
   return `${parts.filter(Boolean).join(". ")}.`;
@@ -263,14 +272,25 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
     }
   }, [isMapLoaded, entryLine, site.id]);
 
+  // Same pin, same de-emphasis-for-a-stale-report treatment `site-map.tsx`'s
+  // `siteHazardStale` applies (T13 v5 addition) — this component's own
+  // header is explicit that this is "not a second pin system," so it must
+  // not fall out of sync on this dimension either. No hazard report means
+  // nothing to be stale, same short-circuit `siteHazardStale` uses.
+  const hazardStale = useMemo(
+    () => site.hasHazardReport && !!site.latestHazardReportAt && hazardReportRecency(site.latestHazardReportAt) === "stale",
+    [site.hasHazardReport, site.latestHazardReportAt],
+  );
+
   const spec = useMemo<PinIconSpec>(
     () => ({
       siteType: normalizeSiteType(site.site_type),
       isCommunity: site.provenance === "COMMUNITY",
       hasHazardReport: site.hasHazardReport,
+      hazardStale,
       legalTier: legalGlyphTier(site.legal_access_status),
     }),
-    [site.site_type, site.provenance, site.hasHazardReport, site.legal_access_status],
+    [site.site_type, site.provenance, site.hasHazardReport, hazardStale, site.legal_access_status],
   );
 
   const iconName = pinIconName(spec);
@@ -341,7 +361,7 @@ export function SiteLocationMap({ site, zoom = DEFAULT_SITE_LOCATION_ZOOM }: Sit
 
   if (!MAPBOX_TOKEN) {
     return (
-      <div className="flex h-56 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-300 bg-zinc-100 p-6 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:bg-depth-2 dark:text-zinc-400">
+      <div className="flex h-56 w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-zinc-300 bg-zinc-100 p-6 text-center text-xs text-zinc-500 dark:border-depth-border dark:bg-depth-2 dark:text-zinc-400">
         <span>Map unavailable — NEXT_PUBLIC_MAPBOX_TOKEN is not set.</span>
         <span className="font-mono text-zinc-600 dark:text-zinc-300">{coordinates}</span>
       </div>

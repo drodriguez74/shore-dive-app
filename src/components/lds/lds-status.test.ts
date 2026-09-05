@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { latestStatusPerShop, type LdsStatusRow } from "./lds-status";
+import { latestStatusPerShop, sortFillStations, type LdsStatusRow } from "./lds-status";
 
 /**
  * `latestStatusPerShop` had zero test coverage before (T22.6) — the only
@@ -89,5 +89,71 @@ describe("latestStatusPerShop", () => {
   it("returns every shop unchanged when each has exactly one row", () => {
     const log = [row({ id: "r1", name: "Shop A" }), row({ id: "r2", name: "Shop B" })];
     expect(latestStatusPerShop(log).map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+  });
+});
+
+describe("sortFillStations", () => {
+  it("puts open before limited before unknown before closed, regardless of input order", () => {
+    const markers = [
+      row({ id: "closed", name: "Closed Shop", status: "closed" }),
+      row({ id: "unknown", name: "Unknown Shop", status: "unknown" }),
+      row({ id: "open", name: "Open Shop", status: "open" }),
+      row({ id: "limited", name: "Limited Shop", status: "limited" }),
+    ];
+
+    const result = sortFillStations(markers, null);
+
+    expect(result.map(({ marker }) => marker.id)).toEqual(["open", "limited", "unknown", "closed"]);
+  });
+
+  it("without a live position, breaks ties within the same status alphabetically", () => {
+    const markers = [
+      row({ id: "b", name: "Bravo Air", status: "open" }),
+      row({ id: "a", name: "Alpha Air", status: "open" }),
+    ];
+
+    const result = sortFillStations(markers, null);
+
+    expect(result.map(({ marker }) => marker.id)).toEqual(["a", "b"]);
+    expect(result.every(({ miles }) => miles === null)).toBe(true);
+  });
+
+  it("with a live position, breaks ties within the same status nearest-first, and reports miles", () => {
+    const from = { latitude: 26.1, longitude: -80.1 };
+    const markers = [
+      row({ id: "far", name: "Far Shop", status: "open", latitude: 26.5, longitude: -80.1 }),
+      row({ id: "near", name: "Near Shop", status: "open", latitude: 26.11, longitude: -80.1 }),
+    ];
+
+    const result = sortFillStations(markers, from);
+
+    expect(result.map(({ marker }) => marker.id)).toEqual(["near", "far"]);
+    expect(result[0].miles).not.toBeNull();
+    expect(result[0].miles!).toBeLessThan(result[1].miles!);
+  });
+
+  it("status priority always wins over distance — a farther open shop beats a nearer closed one", () => {
+    const from = { latitude: 26.1, longitude: -80.1 };
+    const markers = [
+      row({ id: "near-closed", name: "Near Closed Shop", status: "closed", latitude: 26.11, longitude: -80.1 }),
+      row({ id: "far-open", name: "Far Open Shop", status: "open", latitude: 26.5, longitude: -80.1 }),
+    ];
+
+    const result = sortFillStations(markers, from);
+
+    expect(result.map(({ marker }) => marker.id)).toEqual(["far-open", "near-closed"]);
+  });
+
+  it("returns an empty array for an empty marker list, not an error", () => {
+    expect(sortFillStations([], null)).toEqual([]);
+  });
+
+  it("does not mutate the input array", () => {
+    const markers = [row({ id: "b", name: "Bravo", status: "closed" }), row({ id: "a", name: "Alpha", status: "open" })];
+    const original = [...markers];
+
+    sortFillStations(markers, null);
+
+    expect(markers).toEqual(original);
   });
 });
