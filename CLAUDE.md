@@ -16,6 +16,8 @@ Scaffolded and building. This is a **Next.js (App Router) PWA**, not a native mo
 
 **`TASKS.md` is the granular, checkable progress tracker** — update it (`[ ]` → `[x]`, or `[~]` while in progress) as work lands. If a task's scope changes enough that `TASKS.md` and `plan.md` disagree, fix `plan.md` first, then reflect it here. Don't let it silently drift out of sync with what's actually built, the way `plan.md`/`CLAUDE.md` briefly did after the platform pivot this session.
 
+**`HANDOFF.md` is the fast session-to-session orientation** — newest section on top: current repo/branch state, what the last session did, open discoveries, decisions made, and what to work on next. Read it first when picking up work; add a dated section when wrapping up.
+
 ## Product
 
 Shore-Diving Intelligence & Discovery Platform — a **100% free-to-use, zero-monetization** installable web app for discovering and safely diving hyper-local *shore* sites. "Free" describes the user-facing core product, not infra cost — see `plan.md`'s Funding & Cost Model for how infra-heavy features are actually paid for. Success is measured by safety adoption and hyper-local discovery, **not** engagement metrics; avoid noisy/growth-hacky patterns (e.g. push spam). Four product pillars (source of truth: `plan.md`):

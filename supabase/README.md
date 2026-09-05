@@ -137,6 +137,50 @@ initial hand-written batch. The Supabase CLI's own `supabase migration new
 rename these to fit that convention when the CLI is installed and linked;
 the numeric prefixes here are only for readability before that point.
 
+## Auth / OAuth URL configuration (P0-A) — dashboard, not migrations
+
+Google sign-in (`src/app/login/page.tsx` → `src/app/auth/callback/route.ts`)
+is configured entirely in the Supabase dashboard, not in any file here. The
+app code is deployment-agnostic on purpose: the client passes
+`redirectTo: ${window.location.origin}/auth/callback` and the callback route
+redirects using `request.nextUrl.origin`, so it derives the right host in
+every environment **only if the dashboard allows that host**.
+
+**Symptom if this is wrong:** signing in on the deployed app (or any host)
+completes the Google handshake but lands you back on a *different* host —
+typically `http://localhost:3000` — because Supabase fell back to the **Site
+URL** when the app's `redirectTo` didn't match the **Redirect URLs**
+allowlist.
+
+### Supabase Dashboard → Authentication → URL Configuration
+
+This project is tested in two places — **local** (`localhost:3000`) and an
+**online Vercel sandbox** (`https://shore-dive-app.vercel.app`) — so both
+must be allowed at once:
+
+- **Site URL:** `https://shore-dive-app.vercel.app`
+  (the fallback when no valid `redirectTo` is supplied — point it at the
+  hosted app, not localhost)
+- **Redirect URLs** (add all that apply):
+  - `https://shore-dive-app.vercel.app/**`
+  - `http://localhost:3000/**`
+  - any Vercel *preview* deployment origins you actually use
+    (`https://shore-dive-app-*.vercel.app/**`), if preview-branch testing
+    matters — preview URLs are per-deployment and won't match the production
+    entry
+
+Changes here take effect immediately; no redeploy needed.
+
+### Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client
+
+One entry, environment-independent (Google talks to Supabase, not to the
+app):
+
+- **Authorized redirect URIs:**
+  `https://<your-project-ref>.supabase.co/auth/v1/callback`
+
+If sign-in reaches Google and comes back at all, this is already correct.
+
 ## Schema design rationale
 
 ### Provenance model: two states, not four
