@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/error-message";
-import { listSitesInBounds } from "@/lib/sites/queries";
-import { boundingBoxForRadius, sortByDistanceWithinRadius } from "@/lib/sites/distance";
+import { listSitesNear } from "@/lib/sites/queries";
 import { queryOverpassNearby, upsertSitesFromOsm } from "@/lib/sites/osm-import";
 import { claimExternalSearchWindow } from "@/lib/sites/external-search-cache";
 import { logger } from "@/lib/sites/logger";
@@ -67,24 +66,12 @@ const LOCAL_RESULT_THRESHOLD = 3;
 // clamps it.
 const MAX_RADIUS_MILES = 500;
 
-// Row cap for this route's local read — deliberately smaller than
-// `DEFAULT_SITE_QUERY_LIMIT` (500), which `listSitesInBounds` would
-// otherwise default to. Found 2026-08-10, live-reproduced in both `next
-// dev` and a production build (`next build && next start`), not a dev-only
-// artifact: a large-radius query (390 rows succeeds, ~400+ fails) makes
-// this route's own outbound Supabase fetch throw a bare "TypeError: fetch
-// failed" — isolated to Next.js's server fetch handling specifically (the
-// identical query succeeds instantly via a plain script using the same
-// Supabase client construction, outside Next.js entirely). This reads as a
-// large-response-body bug in Next's bundled fetch/undici, not anything
-// wrong with the query, the data, or this app's own code — and not
-// something fixable at this layer. `SEARCH_NEARBY_ROW_LIMIT` keeps this
-// route's responses safely under the observed failure threshold, with real
-// margin. Same "explicit, known, honestly-reported limit" discipline
-// `queries.ts`'s own row-count-ceiling comment already documents — a
-// diver browsing a map does not need 500 pins in one response, and
-// `truncated` (already part of `ListSitesResult`) reports honestly when
-// this cap is hit rather than silently dropping rows.
+// Row cap for this route's local read. Found 2026-08-10, reproduced in dev
+// and prod builds: a ~400+ row response makes Next's bundled fetch/undici
+// throw a bare "TypeError: fetch failed" (the same query is fine outside
+// Next). This keeps responses well under that threshold. Since T24
+// (`0016_search_sites_near.sql`) the rows kept when the cap bites are the
+// *nearest* ones, not an alphabetical slice, and `truncated` reports it.
 const SEARCH_NEARBY_ROW_LIMIT = 200;
 
 function parseCoordinateParam(raw: string | null, min: number, max: number): number | null {
@@ -163,19 +150,15 @@ export async function GET(request: NextRequest) {
 
   const center = { latitude: lat, longitude: lng };
 
-  // Coarse, index-friendly prefilter so this route stops reading the entire
-  // `sites` table on every request (T21.12 — an unbounded read silently
-  // truncates at PostgREST's max-rows once the import pipeline grows the
-  // table, dropping sites from the map with no error). The box is always a
-  // superset of the radius circle (see `boundingBoxForRadius`), so the exact
-  // circular filter below still decides what's actually in range — this only
-  // narrows what comes back from the database.
-  const bounds = boundingBoxForRadius(center, radiusMiles);
-
   // --- Local read: always first, and the only thing that can populate ---
   // --- this response's `error` field. ---
-  const { sites: localSites, error: localError, truncated: localTruncated } = await listSitesInBounds({
-    ...bounds,
+  // `listSitesNear` applies the radius cut AND the distance ordering
+  // server-side (`0016_search_sites_near.sql`), so `localSites` is already
+  // the nearest-first, in-radius set — no JS bounding box or re-sort here.
+  const { sites: localSites, error: localError, truncated: localTruncated } = await listSitesNear({
+    latitude: lat,
+    longitude: lng,
+    radiusMiles,
     limit: SEARCH_NEARBY_ROW_LIMIT,
   });
 
@@ -195,13 +178,14 @@ export async function GET(request: NextRequest) {
   // new, smaller cap.
   let truncated = localTruncated;
   if (truncated) {
-    // Already logged inside listSitesInBounds; repeated here with the request
+    // Already logged inside listSitesNear; repeated here with the request
     // context that only this layer has, since a truncated result means the
     // thin-area check below is reasoning about an incomplete picture.
     logger.warn("search_nearby.local_result_truncated", { lat, lng, radiusMiles });
   }
 
-  let inRadius = sortByDistanceWithinRadius(localSites, center, radiusMiles);
+  // `listSitesNear` already returned these nearest-first and within radius.
+  let inRadius = localSites;
   let searchedExternally = false;
 
   // --- Thin-area fallback: Overpass, gated by (1) a signed-in user, ---
@@ -258,9 +242,14 @@ export async function GET(request: NextRequest) {
         // imported. If this second read fails, fall back to the local data
         // already fetched above rather than losing it over an unrelated,
         // second failure.
-        const refreshed = await listSitesInBounds({ ...bounds, limit: SEARCH_NEARBY_ROW_LIMIT });
+        const refreshed = await listSitesNear({
+          latitude: lat,
+          longitude: lng,
+          radiusMiles,
+          limit: SEARCH_NEARBY_ROW_LIMIT,
+        });
         if (!refreshed.error) {
-          inRadius = sortByDistanceWithinRadius(refreshed.sites, center, radiusMiles);
+          inRadius = refreshed.sites;
           truncated = refreshed.truncated;
         } else {
           logger.warn("search_nearby.post_import_requery_failed", { error: refreshed.error });

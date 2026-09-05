@@ -70,3 +70,8 @@ For AI-backed workers (visibility/chop extraction, webcam discovery), default to
 - **PII handling** — v1's PII surface is account identity (via Google), dive-plan location, and timer state (P0-C) — no emergency contacts yet. Encrypt at rest/in transit, keep retention minimal, never expose beyond the account owner. Re-scope this when a connected alert channel and emergency contacts are added (see `THREAT_MODEL.md` §11).
 - **No paid dependency without checking the funding model** — this is a no-budget solo project; any new SDK/API/service must fit a free or negligible-cost tier, or be flagged to the founder before use.
 - **Don't lint or commit generated output** — `public/sw.js` is rebuilt by Serwist on every build; it's excluded from ESLint and gitignored. If you see it in a diff, something's misconfigured.
+- **Comment brevity** — explain the non-obvious *why* in ≤3 sentences; one line is usually enough. Don't write 5+ line comment blocks or restate what the code says. Some older files over-comment; match the intent above, not their length.
+
+## Working with the founder (LLM response style)
+
+Keep chat responses concise: lead with the answer, skip the preamble and the exhaustive option surveys, and don't re-explain what was just established. Detail on request.

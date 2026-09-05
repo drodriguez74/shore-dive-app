@@ -105,8 +105,15 @@ for syntax, but treat it as unverified until it's actually applied once and
   `research_summary_updated_at` on `sites`, all nullable, schema-only (no
   new table, no RLS change — same reasoning as 0012's dive-metadata columns
   inheriting `sites`' existing RLS). **Not applied** — Open item #18.
-- `seed.sql` — 3 example `VERIFIED` sites for local dev / smoke testing. Not
-  the real content seed (see below).
+- `migrations/0014_shore_access_method.sql` — `shore_access_method` enum/column
+  on `sites` (which signal produced a shore-access classification). Applied.
+- `migrations/0015_area_research_log.sql` — the `area_research_log` table for
+  the map-pan AI discovery daily-call cap (T31). Applied.
+- `migrations/0016_search_sites_near.sql` — the `search_sites_near()` SQL
+  function backing the nearest-N site search (plan.md item 24). No table/RLS
+  change; `SECURITY INVOKER`, granted to `anon`/`authenticated`. **Not applied**
+  — the `search-nearby` route calls this RPC and fails to an empty list + error
+  until it exists.
 
 ## How to apply
 
