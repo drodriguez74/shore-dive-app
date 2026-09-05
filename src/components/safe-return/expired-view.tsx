@@ -11,10 +11,21 @@
  * Conflating the two would let a passive/accidental silence read as "the
  * diver confirmed they're fine," which is exactly the kind of implied
  * guarantee CLAUDE.md's engineering standards warn against.
+ *
+ * This is also the one Safe-Return surface that carries the DAN emergency
+ * hotline as an action rather than as advance reading (`plan.md`, "Safety
+ * first" v5 addendum). An expired, unanswered timer is the closest this app
+ * ever gets to knowing something may have gone wrong, and whoever is holding
+ * the phone at that moment — an overdue diver, or someone on the beach who
+ * picked it up — is the person who needs a real number, not a reminder that
+ * they should have written one down earlier. Placed below the alarm controls
+ * so it never displaces "Silence alarm"/"I'm safe" for a diver who is simply
+ * back late, which is the far more common reason this screen is seen.
  */
 
 import type { AlertChannel } from "@/lib/safe-return/alert-channel";
 import type { UseSafeReturnTimerResult } from "@/hooks/use-safe-return-timer";
+import { DanEmergencyReference } from "./dan-emergency-reference";
 import { HoldToConfirmButton } from "./hold-to-confirm-button";
 import { StatusPanel } from "./status-panel";
 
@@ -57,6 +68,8 @@ export function ExpiredView({ timer, alertChannel }: ExpiredViewProps) {
         onConfirm={timer.checkIn}
         variant="danger"
       />
+
+      <DanEmergencyReference className="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-4 text-rose-900 dark:border-rose-400/30 dark:bg-rose-400/5 dark:text-rose-200" />
     </div>
   );
 }

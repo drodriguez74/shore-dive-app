@@ -74,7 +74,7 @@ export function PretripChecklist({ plan = [], className = "" }: PretripChecklist
               return (
                 <li
                   key={entry.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/60 px-3 py-2 text-sm dark:bg-black/20"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/60 px-3 py-2 text-sm dark:bg-depth-2/40"
                 >
                   <div>
                     <span className="font-medium text-black dark:text-zinc-50">{entry.name}</span>

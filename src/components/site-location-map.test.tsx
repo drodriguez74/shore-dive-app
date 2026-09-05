@@ -104,6 +104,10 @@ describe("pin reuse", () => {
       siteType: SITE.site_type,
       isCommunity: SITE.provenance === "COMMUNITY",
       hasHazardReport: SITE.hasHazardReport,
+      // SITE carries no `latestHazardReportAt`, so this component's own
+      // `hazardStale` computation (see site-location-map.tsx) resolves to
+      // false — an absent timestamp is not treated as evidence of staleness.
+      hazardStale: false,
       legalTier: legalGlyphTier(SITE.legal_access_status),
     });
     expect(expected).toBe("site-pin-shore_reef-community-hazard-amber");

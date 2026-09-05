@@ -174,8 +174,16 @@ export function StartScreen({ timer, alertChannel }: StartScreenProps) {
           onChange={(event) => setAcknowledged(event.target.checked)}
           className="mt-0.5 h-4 w-4"
         />
-        I understand this only alerts me on this device, nobody else is notified, and
-        it&apos;s less reliable in the background — I&apos;ve told a real person my dive plan.
+        {/* Deliberately a paraphrase the diver actively affirms, not a second
+            copy of `DisclaimerNotice` — but it has to cover the same limits,
+            or the thing they consent to is narrower than the thing they were
+            told. The buddy clause is here for that reason (plan.md, "Safety
+            first" v5 addendum): the timer is one-device-per-countdown, and
+            this is the one place the diver asserts they understand what
+            checking in will and won't mean. */}
+        I understand this only alerts me on this device, nobody else is notified,
+        it&apos;s less reliable in the background, and checking in confirms only me —
+        not my buddy. I&apos;ve told a real person my dive plan.
       </label>
 
       {/* The one deliberately-decorative gradient moment on this screen, per

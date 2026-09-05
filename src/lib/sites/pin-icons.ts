@@ -200,11 +200,34 @@ export const SITE_TYPE_GLYPHS: Record<SiteType, (ctx: CanvasRenderingContext2D) 
 };
 
 /** The four visual dimensions one rasterized pin icon is keyed by. One spec
- * = one `map.addImage` registration = one `icon-image` id. */
+ * = one `map.addImage` registration = one `icon-image` id.
+ *
+ * `hazardStale` (T13 v5 addition, plan.md: "a report should visually recede
+ * past an age threshold rather than carrying the same weight as a fresh one
+ * indefinitely") is deliberately NOT a fifth independent dimension. It only
+ * has meaning when `hasHazardReport` is true — it doesn't introduce a new
+ * axis of pin variation the way site-type/provenance/hazard/legal-tier each
+ * are, it re-weights the *existing* hazard-fill dimension. See
+ * `drawPinIcon`'s own comment for why: this is intentionally the
+ * conservative choice flagged as legitimate by the task that added it,
+ * given this pin system's own documented history of nearly becoming
+ * unreadable the last time a dimension was added carelessly (see the
+ * "ICON ARTWORK IS DELIBERATELY CONSERVATIVE" note above `SITE_TYPES`). */
 export interface PinIconSpec {
   siteType: SiteType;
   isCommunity: boolean;
   hasHazardReport: boolean;
+  /** Only meaningful when `hasHazardReport` is true — see this interface's
+   * own header. Whether the *most recent* hazard report on file is in
+   * `hazard-recency.ts`'s "stale" tier (>30 days old, currently). "Aging"
+   * reports (7–30 days) intentionally render identically to fresh ones at
+   * the pin level: the pin only has room for one more bit of information
+   * without repeating the T11.5 legibility regression, and the plan.md
+   * wording asks for a single "recede past an age threshold," not a
+   * three-way pin split. The full three-tier distinction (fresh/aging/
+   * stale) is legible as text on the site-detail page instead
+   * (`HazardRecencyBadge`), which has room for it. */
+  hazardStale: boolean;
   legalTier: LegalGlyphTier | null;
 }
 
@@ -214,9 +237,10 @@ export interface PinIconSpec {
  * layer's `["get", "icon"]` expression looks up the image registered under
  * exactly this name. */
 export function pinIconName(spec: PinIconSpec): string {
-  return `site-pin-${spec.siteType}-${spec.isCommunity ? "community" : "verified"}-${
-    spec.hasHazardReport ? "hazard" : "clear"
-  }-${spec.legalTier ?? "none"}`;
+  const hazardSegment = spec.hasHazardReport ? (spec.hazardStale ? "hazard-stale" : "hazard") : "clear";
+  return `site-pin-${spec.siteType}-${spec.isCommunity ? "community" : "verified"}-${hazardSegment}-${
+    spec.legalTier ?? "none"
+  }`;
 }
 
 export const PIN_WIDTH = 30;
@@ -229,8 +253,22 @@ export function drawPinIcon(ctx: CanvasRenderingContext2D, spec: PinIconSpec): v
   ctx.scale(PIN_RASTER_SCALE, PIN_RASTER_SCALE);
 
   // Teardrop body — same path/reasoning as SITE_PIN_PATH's comment above.
+  // T13 v5 addition: a stale hazard report fills at reduced alpha rather
+  // than full-strength amber — a de-emphasized version of the *existing*
+  // hazard-fill color per plan.md's own suggested treatment ("consider...
+  // a de-emphasized version of the existing hazard-fill color... rather
+  // than inventing a whole new pin dimension"), not a new hue. The alpha
+  // reduction is scoped to the fill only (a plain `rgba()` fillStyle,
+  // rather than `ctx.globalAlpha`, which would also wash out the stroke
+  // drawn immediately after) — the provenance ring stays at full contrast
+  // regardless of hazard state, preserving the T11.5 legibility fix's
+  // "always near-white, maximum contrast" guarantee for that ring.
   const body = new Path2D(SITE_PIN_PATH);
-  ctx.fillStyle = spec.hasHazardReport ? "#f59e0b" : "#0ea5e9";
+  ctx.fillStyle = spec.hasHazardReport
+    ? spec.hazardStale
+      ? "rgba(245, 158, 11, 0.45)"
+      : "#f59e0b"
+    : "#0ea5e9";
   ctx.fill(body);
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = "#fafafa";
@@ -273,15 +311,28 @@ export function drawPinIcon(ctx: CanvasRenderingContext2D, spec: PinIconSpec): v
  * icons get registered with `map.addImage`; it carries no meaning beyond
  * that, but the *set* must cover every spec `buildSiteFeatureCollection`
  * can produce, or a real site would reference an unregistered image and
- * render as nothing. */
+ * render as nothing.
+ *
+ * `hazardStale` only varies when `hasHazardReport` is true: per
+ * `PinIconSpec`'s own header, staleness has no visual effect when there's no
+ * hazard fill to de-emphasize in the first place, so enumerating both
+ * `hazardStale` values for `hasHazardReport: false` would register two
+ * pixel-identical images under two different names — wasted work, and a
+ * second name that `pinIconName` would produce but no real
+ * `SiteMarker`-derived spec would ever ask for (see the "covers every icon
+ * name a real site marker could resolve to" test, which enumerates the same
+ * way this function does). */
 export function allPinIconSpecs(): PinIconSpec[] {
   const specs: PinIconSpec[] = [];
   const legalTiers: Array<LegalGlyphTier | null> = [null, "amber", "rose"];
   for (const siteType of SITE_TYPES) {
     for (const isCommunity of [false, true]) {
       for (const hasHazardReport of [false, true]) {
-        for (const legalTier of legalTiers) {
-          specs.push({ siteType, isCommunity, hasHazardReport, legalTier });
+        const hazardStaleValues = hasHazardReport ? [false, true] : [false];
+        for (const hazardStale of hazardStaleValues) {
+          for (const legalTier of legalTiers) {
+            specs.push({ siteType, isCommunity, hasHazardReport, hazardStale, legalTier });
+          }
         }
       }
     }

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { SiteMap } from "@/components/site-map";
 import { NearbyDiveSitesList, type SiteWithDistance } from "@/components/nearby-dive-sites-list";
-import type { LdsStatusRow } from "@/components/lds/lds-status";
+import { SiteDiscoveryCandidates } from "@/components/site-discovery-candidates";
+import { latestStatusPerShop, type LdsStatusRow } from "@/components/lds/lds-status";
 import { useGeolocation, type GeolocationCoords } from "@/hooks/use-geolocation";
 import { distanceMiles } from "@/lib/sites/distance";
 import { errorMessage } from "@/lib/error-message";
@@ -12,6 +14,7 @@ import { useExplorerPreferences } from "@/lib/sites/explorer-preferences";
 import { classifyDiveDifficulty, DIFFICULTY_LABEL, type DifficultyLevel } from "@/lib/sites/dive-difficulty";
 import { SITE_TYPE_LABELS } from "@/lib/sites/site-type-labels";
 import type { SiteMarker, SiteType } from "@/lib/sites/types";
+import type { CandidateSite } from "@/lib/site-discovery/area-research";
 
 // Declared this early specifically so `MAX_RADIUS_MILES` below (used by
 // `computeMapEmptyStateMessage`) can reference it — both are top-level
@@ -116,6 +119,18 @@ export interface MapEmptyStateParams {
   difficultyFilter: DifficultyFilter;
   shoreAccessFilter: ShoreAccessFilter;
   searchedExternally: boolean;
+  /** True when `hasCoords` is satisfied by a manually-picked map location
+   * (2026-08-11's "Fetch dive sites here" feature) rather than the diver's
+   * own geolocation — swaps "your location" for "this location" in the
+   * copy below so the message stays literally true. Deliberately does NOT
+   * add a distinct "already checked this area recently" message: the
+   * search-nearby response has no field saying *why* `searchedExternally`
+   * came back false (could be the 30-day grid-cell cooldown, could be the
+   * anonymous-user gate, could be plenty of local results already) — this
+   * codebase's own life-safety-adjacent honesty rule cuts both ways: don't
+   * assert a specific reason you can't actually verify. Defaults to
+   * `false` so every existing caller/test is unaffected. */
+  isManualLocation?: boolean;
 }
 
 /**
@@ -142,25 +157,34 @@ export interface MapEmptyStateParams {
  * expanding to).
  */
 export function computeMapEmptyStateMessage(params: MapEmptyStateParams): string | null {
-  const { resultCount, hasCoords, radiusMiles, siteTypeFilter, difficultyFilter, shoreAccessFilter, searchedExternally } =
-    params;
+  const {
+    resultCount,
+    hasCoords,
+    radiusMiles,
+    siteTypeFilter,
+    difficultyFilter,
+    shoreAccessFilter,
+    searchedExternally,
+    isManualLocation = false,
+  } = params;
 
   if (resultCount > 0 || !hasCoords || !Number.isFinite(radiusMiles)) return null;
 
   const noFilterActive = siteTypeFilter === "all" && difficultyFilter === "all" && shoreAccessFilter === "all";
   const canExpand = radiusMiles < MAX_RADIUS_MILES;
+  const locationPhrase = isManualLocation ? "this location" : "your location";
 
   if (!noFilterActive) {
     const suffix = canExpand ? " Try expanding the radius or clearing filters." : "";
-    return `No ${describeActiveFilters(siteTypeFilter, difficultyFilter, shoreAccessFilter)}sites within ${radiusLabel(radiusMiles)} of your location.${suffix}`;
+    return `No ${describeActiveFilters(siteTypeFilter, difficultyFilter, shoreAccessFilter)}sites within ${radiusLabel(radiusMiles)} of ${locationPhrase}.${suffix}`;
   }
 
   if (searchedExternally) {
-    return `Checked OpenStreetMap too — no dive sites within ${radiusLabel(radiusMiles)} of your location.`;
+    return `Checked OpenStreetMap too — no dive sites within ${radiusLabel(radiusMiles)} of ${locationPhrase}.`;
   }
 
   const suffix = canExpand ? " Try expanding the radius — the app has sites well outside this range." : "";
-  return `No dive sites within ${radiusLabel(radiusMiles)} of your location.${suffix}`;
+  return `No dive sites within ${radiusLabel(radiusMiles)} of ${locationPhrase}.${suffix}`;
 }
 
 /**
@@ -268,6 +292,50 @@ const IDLE_SEARCH_STATE: SearchNearbyState = {
   truncated: false,
 };
 
+/** State for the AI-assisted web-search fallback (`plan.md` Resolved Spec
+ * Decision #10, 2026-08-11) — only offered as a second, explicit action
+ * once the free OSM tier has already come up genuinely empty at
+ * `manualCenter`. Deliberately its own state, not folded into
+ * `SearchNearbyState`: these are two different pipelines (local DB +
+ * Overpass vs. Brave Search + Gemini) with two different trigger
+ * conditions, and conflating them would make either harder to reason
+ * about independently. */
+export interface AiSearchState {
+  status: "idle" | "loading" | "done" | "error";
+  candidates: CandidateSite[];
+  error: string | null;
+}
+
+const IDLE_AI_SEARCH_STATE: AiSearchState = { status: "idle", candidates: [], error: null };
+
+export interface AiSearchResponse {
+  candidates?: CandidateSite[];
+  error?: string | null;
+}
+
+/**
+ * Decides the next `AiSearchState` from a `POST /api/sites/research-area`
+ * response — extracted as a pure function for the same testability reason
+ * `nextSearchStateFromResponse` above already is, and to fix the same bug
+ * class found live in that one, reproduced here (2026-08-11): the route
+ * deliberately returns HTTP 200 with `error` set for an upstream
+ * (Brave/Gemini) failure — e.g. a Gemini free-tier quota error — so a
+ * request that "succeeded" at the HTTP level can still be a real failure.
+ * Checking `response.ok` alone treated that identically to "searched the
+ * web, found nothing here," the exact dishonest-empty-state this app
+ * already fixed once on the main search path and must not regress here.
+ */
+export function nextAiSearchStateFromResponse(
+  data: AiSearchResponse,
+  responseOk: boolean,
+  statusCode: number,
+): AiSearchState {
+  if (!responseOk || data.error) {
+    return { status: "error", candidates: [], error: data.error ?? `Request failed (${statusCode})` };
+  }
+  return { status: "done", candidates: data.candidates ?? [], error: null };
+}
+
 export interface DiveSiteExplorerProps {
   /** Full, unfiltered `sites` fetch from the Server Component page that
    * renders this wrapper (`src/app/page.tsx`, T11.5/Task 21) — the
@@ -343,16 +411,85 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
     setShoreAccessFilter,
   } = useExplorerPreferences();
   const [search, setSearch] = useState<SearchNearbyState>(IDLE_SEARCH_STATE);
+  // Map-pan discovery (2026-08-11): a diver panning the map to somewhere
+  // unloaded (e.g. Santa Marta, La Romana) can explicitly ask to search
+  // *there* instead of wherever geolocation puts them — see `SiteMap`'s
+  // `onFetchHere` prop. `null` means "no manual override, use geolocation",
+  // the same "explicit choice wins over the ambient default" pattern
+  // `hasPositionedRef`/`savedViewport` already use in `site-map.tsx` for the
+  // map's own position. Once set, geolocation updates no longer silently
+  // override it — only "Use my location instead" (below) clears it.
+  const [manualCenter, setManualCenter] = useState<GeolocationCoords | null>(null);
+  const effectiveCoords = manualCenter ?? coords;
+  const [aiSearch, setAiSearch] = useState<AiSearchState>(IDLE_AI_SEARCH_STATE);
 
-  // Fires only when real coordinates first resolve, or when the radius
-  // selector actually changes value — see `nearby-dive-sites-list.tsx`'s
+  /** Wraps `setManualCenter` so picking a new location also clears any
+   * AI-search results from wherever the diver was previously — stale
+   * candidates from a different point on the map must never linger. */
+  function handleFetchHere(center: GeolocationCoords) {
+    setManualCenter(center);
+    setAiSearch(IDLE_AI_SEARCH_STATE);
+  }
+
+  function handleResetToMyLocation() {
+    setManualCenter(null);
+    setAiSearch(IDLE_AI_SEARCH_STATE);
+  }
+
+  async function handleAiSearch() {
+    if (!manualCenter) return;
+    setAiSearch({ status: "loading", candidates: [], error: null });
+    try {
+      const response = await fetch("/api/sites/research-area", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: manualCenter.latitude, longitude: manualCenter.longitude }),
+      });
+      const data = (await response.json()) as AiSearchResponse;
+      setAiSearch(nextAiSearchStateFromResponse(data, response.ok, response.status));
+    } catch (error) {
+      logger.warn("ai_area_search_failed", { message: errorMessage(error) });
+      setAiSearch({ status: "error", candidates: [], error: "Something went wrong — try again." });
+    }
+  }
+
+  /** Merges a just-added candidate straight into the current server search
+   * result — reuses the exact same derivation (`inRadius`/`mapSiteMarkers`
+   * below) that already renders `search.sites`, so the new pin appears on
+   * the map immediately, no re-fetch needed (the founder's explicit
+   * requirement: "I should see the results immediately"). A no-op if
+   * `search.sites` is somehow null (shouldn't happen — this is only
+   * reachable once a "done" server result already produced an empty
+   * array), so this never crashes onto a stale/impossible state. */
+  function handleCandidateAdded(site: SiteMarker) {
+    setSearch((prev) => (prev.sites ? { ...prev, sites: [...prev.sites, site] } : prev));
+  }
+
+  /** Same idea as `handleCandidateAdded`, for LDS/fill-station status
+   * reports filed from a map popup (Task 16, 2026-08-20): the row the
+   * server actually inserted is appended to a session-local log and the
+   * whole thing is re-collapsed with `latestStatusPerShop` — the identical
+   * function `listLdsStatusMarkers()` uses server-side, so an in-session
+   * report and a server-rendered one resolve by exactly the same rule
+   * (latest `last_verified_at` per shop wins) rather than by whichever
+   * happened to be appended last. Without this, filing a report from a
+   * popup left the pin and popup showing the previous status until a
+   * reload, which is indistinguishable from the report not having saved. */
+  const [ldsSubmitted, setLdsSubmitted] = useState<LdsStatusRow[]>([]);
+  const currentLdsMarkers = useMemo(
+    () => (ldsSubmitted.length === 0 ? ldsMarkers : latestStatusPerShop([...ldsMarkers, ...ldsSubmitted])),
+    [ldsMarkers, ldsSubmitted],
+  );
+
+  // Fires when the effective search center first resolves, or when the
+  // radius selector actually changes value — see `nearby-dive-sites-list.tsx`'s
   // pre-T21.6 version for the original, identical reasoning (moved here
   // verbatim, not rewritten). The "All" radius is deliberately never sent
   // to the route — there's no sensible finite value to send, and "show
   // everything already known" is exactly what client-side filtering below
   // already does correctly.
   useEffect(() => {
-    if (!coords || !Number.isFinite(radiusMiles)) return;
+    if (!effectiveCoords || !Number.isFinite(radiusMiles)) return;
 
     const controller = new AbortController();
     // Deferred via setTimeout, same react-hooks/set-state-in-effect reason
@@ -392,19 +529,21 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
         logger.warn("nearby_search_fetch_failed", { message: errorMessage(error) });
         setSearch({ status: "error", sites: null, searchedExternally: false, radiusMiles, truncated: false });
       }
-    })(coords);
+    })(effectiveCoords);
 
     return () => {
       controller.abort();
       clearTimeout(loadingTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coords?.latitude, coords?.longitude, radiusMiles]);
+  }, [effectiveCoords?.latitude, effectiveCoords?.longitude, radiusMiles]);
 
   const sitesWithDistance = useMemo<SiteWithDistance[] | null>(() => {
-    if (!coords) return null;
-    return sites.map((site) => ({ site, miles: distanceMiles(coords, site) })).sort((a, b) => a.miles - b.miles);
-  }, [sites, coords]);
+    if (!effectiveCoords) return null;
+    return sites
+      .map((site) => ({ site, miles: distanceMiles(effectiveCoords, site) }))
+      .sort((a, b) => a.miles - b.miles);
+  }, [sites, effectiveCoords]);
 
   // Prefer the real server search result (T21.3 — local-first, on-demand
   // Overpass fallback) once it's actually landed for the *current* radius.
@@ -430,8 +569,8 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
   }, [sitesWithDistance, radiusMiles]);
 
   const inRadius: SiteWithDistance[] =
-    useServerResult && coords
-      ? search.sites!.map((site) => ({ site, miles: distanceMiles(coords, site) }))
+    useServerResult && effectiveCoords
+      ? search.sites!.map((site) => ({ site, miles: distanceMiles(effectiveCoords, site) }))
       : clientInRadius;
 
   // Filter-by-type (2026-08-09, founder: "we can have tags in the dive
@@ -495,28 +634,103 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
   // `mapSiteMarkers` just narrows which pins render, `SiteMap`/`pin-icons.ts`
   // are otherwise untouched.
   const mapSiteMarkers =
-    coords && Number.isFinite(radiusMiles) ? filteredInRadius.map((entry) => entry.site) : filteredSites;
+    effectiveCoords && Number.isFinite(radiusMiles) ? filteredInRadius.map((entry) => entry.site) : filteredSites;
 
   const mapEmptyStateMessage = computeMapEmptyStateMessage({
     resultCount: mapSiteMarkers.length,
-    hasCoords: coords !== null,
+    hasCoords: effectiveCoords !== null,
     radiusMiles,
     siteTypeFilter,
     difficultyFilter,
     shoreAccessFilter,
     searchedExternally,
+    isManualLocation: manualCenter !== null,
   });
+
+  // Gate for the AI-search fallback: only once a manually-picked location's
+  // server search has genuinely come back with zero sites — checked against
+  // the RAW server result (`search.sites`), not `mapSiteMarkers`, since the
+  // latter can be empty purely because a type/difficulty/shore-access filter
+  // is active even though OSM actually found real sites here. Offering a
+  // costed web search in that case would be wrong: the free tier didn't
+  // fail, a filter is just hiding its results.
+  const noLocalOrOsmResults = manualCenter !== null && useServerResult && (search.sites?.length ?? 0) === 0;
 
   return (
     <>
       <div className="flex-1">
-        <SiteMap ldsMarkers={ldsMarkers} siteMarkers={mapSiteMarkers} emptyStateMessage={mapEmptyStateMessage} />
+        {manualCenter && (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span>Showing sites near a location you picked on the map.</span>
+            <button
+              type="button"
+              onClick={handleResetToMyLocation}
+              className="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
+            >
+              Use my location instead
+            </button>
+          </div>
+        )}
+        <SiteMap
+          ldsMarkers={currentLdsMarkers}
+          siteMarkers={mapSiteMarkers}
+          emptyStateMessage={mapEmptyStateMessage}
+          onFetchHere={handleFetchHere}
+          isFetchingHere={isSearching}
+          onUseMyLocation={handleResetToMyLocation}
+          isSignedIn={isSignedIn}
+          onLdsSubmitted={(marker) => setLdsSubmitted((prev) => [...prev, marker])}
+        />
       </div>
+
+      {noLocalOrOsmResults && (
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Nothing found here yet via the free OpenStreetMap search.
+          </p>
+          {!isSignedIn ? (
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Link
+                href="/login"
+                className="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
+              >
+                Sign in
+              </Link>{" "}
+              to also search the web for dive sites here.
+            </p>
+          ) : aiSearch.status === "idle" ? (
+            <button
+              type="button"
+              onClick={handleAiSearch}
+              className="mt-2 min-h-[32px] rounded-full border border-sky-600 bg-sky-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-sky-700"
+            >
+              Search the web for dive sites here
+            </button>
+          ) : aiSearch.status === "loading" ? (
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Searching the web…</p>
+          ) : aiSearch.status === "error" ? (
+            <div className="mt-2">
+              <p className="text-xs text-rose-700 dark:text-rose-400">{aiSearch.error}</p>
+              <button
+                type="button"
+                onClick={handleAiSearch}
+                className="mt-1 text-xs font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <SiteDiscoveryCandidates candidates={aiSearch.candidates} onAdded={handleCandidateAdded} />
+            </div>
+          )}
+        </div>
+      )}
 
       <NearbyDiveSitesList
         sites={filteredSites}
         status={status}
-        coords={coords}
+        coords={effectiveCoords}
         radiusMiles={radiusMiles}
         onRadiusChange={setRadiusMiles}
         radiusOptions={RADIUS_OPTIONS_MILES}

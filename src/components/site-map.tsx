@@ -14,6 +14,7 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { useExplorerPreferences } from "@/lib/sites/explorer-preferences";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/sites/logger";
+import { hazardReportRecency } from "@/lib/sites/hazard-recency";
 import {
   allPinIconSpecs,
   drawPinIcon,
@@ -57,12 +58,46 @@ const STATUS_DOT_CLASSES: Record<LdsStatusValue, string> = {
 // those icons reach the map: rasterizing each spec into `map.addImage`,
 // the GeoJSON feature collection carrying each site's icon name, the
 // symbol layer's `["get", "icon"]` expression, and event wiring.
+/** Whether a site's most recent hazard report has aged into
+ * `hazard-recency.ts`'s "stale" tier — `false` whenever there's no report at
+ * all (nothing to be stale). Shared by `siteAccessibleLabel` and
+ * `buildSiteFeatureCollection` so the screen-reader text and the pin's
+ * visual treatment can never disagree about which sites read as stale.
+ *
+ * `now` defaults to a fresh `new Date()` per call rather than being
+ * threaded through as a prop: unlike `FreshnessBadge`, this map doesn't
+ * re-tick a displayed age on a timer (see `HazardRecencyBadge`'s own header
+ * for why day-scale thresholds don't need that) — `buildSiteFeatureCollection`
+ * already only re-runs when `siteMarkers` itself changes (this file's
+ * `useMemo` below), i.e. whenever real data is fetched, which is the point
+ * at which "now" should be re-evaluated anyway. */
+function siteHazardStale(site: SiteMarker, now: Date = new Date()): boolean {
+  // A missing `latestHazardReportAt` on a `hasHazardReport: true` marker is
+  // NOT the same failure mode `hazardReportRecency`'s own "fail toward
+  // stale" rule guards against. That rule exists for a malformed/unparseable
+  // *string* (a real data problem, "fail toward looking less fresh, not
+  // more"). An absent field here more likely means a caller built this
+  // `SiteMarker` without threading the optional new field (legacy/partial
+  // construction) than that the report is actually old — and receding a
+  // hazard pin by default in that ambiguous case is the wrong safety
+  // direction: it would make a possibly-current hazard warning *less*
+  // visible over a data-completeness gap unrelated to the report's real
+  // age. So this defaults to full-strength (not stale) rather than
+  // reusing `hazardReportRecency`'s bad-string handling.
+  if (!site.hasHazardReport || !site.latestHazardReportAt) return false;
+  return hazardReportRecency(site.latestHazardReportAt, now) === "stale";
+}
+
 function siteAccessibleLabel(site: SiteMarker): string {
   const glyphTier = legalGlyphTier(site.legal_access_status);
   return [
     site.name,
     site.provenance === "VERIFIED" ? "Verified" : "Community",
-    site.hasHazardReport ? "hazard reported" : null,
+    // T13 v5 addition: a stale report gets its own accessible text too, not
+    // just a faded pin — plan.md's engineering-standards addenda calls for
+    // a non-color-only path for pin information, and a de-emphasized pin
+    // fill is exactly a color/opacity-only signal without this.
+    site.hasHazardReport ? (siteHazardStale(site) ? "hazard reported (dated)" : "hazard reported") : null,
     glyphTier ? legalAccessLabel(site.legal_access_status) : null,
   ]
     .filter(Boolean)
@@ -81,6 +116,7 @@ interface SitePinProperties {
 
 function buildSiteFeatureCollection(
   siteMarkers: SiteMarker[],
+  now: Date = new Date(),
 ): GeoJSON.FeatureCollection<GeoJSON.Point, SitePinProperties> {
   return {
     type: "FeatureCollection",
@@ -88,7 +124,14 @@ function buildSiteFeatureCollection(
       const siteType = site.site_type;
       const legalTier = legalGlyphTier(site.legal_access_status);
       const isCommunity = site.provenance === "COMMUNITY";
-      const icon = pinIconName({ siteType, isCommunity, hasHazardReport: site.hasHazardReport, legalTier });
+      const hazardStale = siteHazardStale(site, now);
+      const icon = pinIconName({
+        siteType,
+        isCommunity,
+        hasHazardReport: site.hasHazardReport,
+        hazardStale,
+        legalTier,
+      });
 
       return {
         type: "Feature",
@@ -140,9 +183,72 @@ export interface SiteMapProps {
    * genuinely empty); this component never invents its own reason.
    */
   emptyStateMessage?: string | null;
+  /**
+   * Manual "search here" trigger (Phase 1 of the map-pan discovery feature,
+   * 2026-08-11) — called with the map's current center (read imperatively
+   * via `mapRef.current?.getCenter()` at click time, not tracked in state,
+   * so it can never go stale between pans and the click) when the diver
+   * wants to search wherever they've panned to instead of their own
+   * geolocation. Optional and omitted-by-default: `site-location-map.tsx`
+   * (the single-site detail map) has no use for this, only
+   * `DiveSiteExplorer` does. Rendering the button is gated on this prop
+   * being provided, not on `emptyStateMessage`/pin count — deliberately
+   * persistent rather than auto-detected, since Mapbox already shows a
+   * visibly empty map when panned somewhere with no data; no separate
+   * "is this area empty" heuristic is needed.
+   */
+  onFetchHere?: (center: { latitude: number; longitude: number }) => void;
+  /** Disables the fetch-here button and swaps its label while a search
+   * triggered by it is in flight — same "never let the user fire a second
+   * overlapping request" discipline as every other async action in this
+   * app. */
+  isFetchingHere?: boolean;
+  /**
+   * `TASKS.md T27`, from the 2026-08-13 UX audit: a tour guide or shop owner
+   * standing at a real site already knows exactly where they are, but a
+   * *returning* visitor's map opens wherever `savedViewport` last left it
+   * (Bermuda, say — this component's own `useExplorerPreferences` restore
+   * above), not their real current position, with previously no way back to
+   * it except manually panning/zooming the whole way there by hand — the
+   * map's own one-time geolocation fly-to (above) only ever fires once, on
+   * a mount with no saved viewport at all.
+   *
+   * Called after this component has already flown the camera back to the
+   * diver's real `useGeolocation()` position (this component owns the fly,
+   * since it already has `userLocation` and `mapRef` — the caller doesn't
+   * need to pass coordinates back in) — purely a "the camera moved, reset
+   * whatever data-side manual override you were tracking" signal, mirroring
+   * `onFetchHere`'s own map-owns-the-camera / caller-owns-the-data split.
+   * Omitted entirely on `site-location-map.tsx` (the single-site detail
+   * map), same as `onFetchHere` — only `DiveSiteExplorer` has a manual
+   * override to reset.
+   */
+  onUseMyLocation?: () => void;
+  /** Whether the viewer has a real session, resolved server-side by the
+   * page (Task 16, 2026-08-20). Passed straight through to the LDS popup's
+   * report form, which shows a sign-in prompt rather than a form that
+   * `lds_status`' `to authenticated` insert policy would reject. Never a
+   * security boundary — `/api/lds/submit` re-checks the session itself. */
+  isSignedIn?: boolean;
+  /** Called with the `lds_status` row the server actually inserted after a
+   * successful status report from the popup, so the owner of `ldsMarkers`
+   * (`DiveSiteExplorer`) can merge it and repaint the pin/popup without a
+   * reload. This component deliberately doesn't hold its own copy of
+   * `ldsMarkers`: the caller already owns that state, and a second local
+   * copy is how a pin and a list end up disagreeing. */
+  onLdsSubmitted?: (marker: LdsStatusRow) => void;
 }
 
-export function SiteMap({ ldsMarkers = [], siteMarkers = [], emptyStateMessage = null }: SiteMapProps) {
+export function SiteMap({
+  ldsMarkers = [],
+  siteMarkers = [],
+  emptyStateMessage = null,
+  onFetchHere,
+  isFetchingHere = false,
+  onUseMyLocation,
+  isSignedIn = false,
+  onLdsSubmitted,
+}: SiteMapProps) {
   const [openMarkerId, setOpenMarkerId] = useState<string | null>(null);
   const [reportingMarkerId, setReportingMarkerId] = useState<string | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
@@ -396,13 +502,27 @@ export function SiteMap({ ldsMarkers = [], siteMarkers = [], emptyStateMessage =
                 <LastVerifiedBadge lastVerifiedAt={openMarker.last_verified_at} />
               </div>
 
+              {/* plan.md Task 16 v5 addendum, "Liability disclosure": a shop
+                  can't control or correct its own listing here yet, but bears
+                  the real reputational risk if a stale/wrong status strands a
+                  diver. Say plainly that this app doesn't verify status
+                  itself and it may be wrong — the same "never imply a
+                  guarantee the system can't back" standard CLAUDE.md holds
+                  Safe-Return to, applied to LDS status. */}
+              <p className="text-xs leading-snug text-zinc-500">
+                Community/shop-reported, not a live feed. This app doesn&apos;t verify status itself — it may be
+                wrong or outdated.
+              </p>
+
               {reportingMarkerId === openMarker.id ? (
                 <LdsSubmissionForm
                   siteId={openMarker.site_id}
                   shopName={openMarker.name}
                   latitude={openMarker.latitude}
                   longitude={openMarker.longitude}
-                  onSubmitted={() => setReportingMarkerId(null)}
+                  isSignedIn={isSignedIn}
+                  onSubmitted={onLdsSubmitted}
+                  onClose={() => setReportingMarkerId(null)}
                 />
               ) : (
                 <button
@@ -426,6 +546,46 @@ export function SiteMap({ ldsMarkers = [], siteMarkers = [], emptyStateMessage =
           className="pointer-events-none absolute inset-x-4 top-4 z-10 rounded-lg border border-zinc-200 bg-white/95 p-3 text-xs text-zinc-600 shadow-md dark:border-depth-border dark:bg-depth-1/95 dark:text-zinc-400"
         >
           {emptyStateMessage}
+        </div>
+      )}
+
+      {onUseMyLocation && (
+        <div className="pointer-events-none absolute bottom-4 right-4 z-10">
+          <button
+            type="button"
+            disabled={!userLocation}
+            title={userLocation ? "Fly the map back to my current location" : "Waiting on location access"}
+            aria-label="Use my current location"
+            onClick={() => {
+              if (!userLocation) return;
+              hasPositionedRef.current = true;
+              mapRef.current?.flyTo({ center: [userLocation.longitude, userLocation.latitude], zoom: 11, duration: 1200 });
+              onUseMyLocation();
+            }}
+            className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-depth-border dark:bg-depth-1/95 dark:text-zinc-200"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {onFetchHere && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+          <button
+            type="button"
+            disabled={isFetchingHere}
+            onClick={() => {
+              const center = mapRef.current?.getCenter();
+              if (!center) return;
+              onFetchHere({ latitude: center.lat, longitude: center.lng });
+            }}
+            className="pointer-events-auto rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-xs font-medium text-zinc-700 shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-depth-border dark:bg-depth-1/95 dark:text-zinc-200"
+          >
+            {isFetchingHere ? "Fetching…" : "Fetch dive sites here"}
+          </button>
         </div>
       )}
       </div>

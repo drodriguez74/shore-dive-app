@@ -24,9 +24,21 @@
  */
 
 import type { Provenance } from "@/components/provenance-badge";
+import type { LatLng } from "@/lib/sites/distance";
+import { distanceMiles } from "@/lib/sites/distance";
 
 /** Matches the `lds_status.status` check constraint exactly. */
 export type LdsStatusValue = "open" | "closed" | "limited" | "unknown";
+
+/**
+ * The same four values as `LdsStatusValue`, as a runtime array — the
+ * submission form's `<select>` options and the API route's server-side
+ * validation (`src/lib/lds/submission.ts`) both read from this one list, so
+ * a value the UI can offer and a value the server will accept can never
+ * drift apart. Ordered by how a diver reads a fill-station list (see
+ * `STATUS_PRIORITY` below), not alphabetically.
+ */
+export const LDS_STATUS_VALUES = ["open", "limited", "closed", "unknown"] as const satisfies readonly LdsStatusValue[];
 
 /**
  * `lds_status` only ever carries the two-state provenance model (P0-B) —
@@ -85,3 +97,34 @@ export const LDS_STATUS_LABEL: Record<LdsStatusValue, string> = {
   limited: "Limited air",
   unknown: "Status unknown",
 };
+
+/**
+ * `open` before `limited` before `unknown` before `closed` — a diver
+ * planning an air refill cares most about shops that can actually fill a
+ * tank right now; a bare-alphabetical or last-verified sort would bury an
+ * "open" shop under an "unknown" one just because of name/timestamp.
+ */
+const STATUS_PRIORITY: Record<LdsStatusValue, number> = { open: 0, limited: 1, unknown: 2, closed: 3 };
+
+export interface SortedFillStation {
+  marker: LdsStatusRow;
+  miles: number | null;
+}
+
+/**
+ * `fill-stations-list.tsx`'s ordering: status priority first (see
+ * `STATUS_PRIORITY`), then nearest-first when a live position is available,
+ * then alphabetical as the final honest tiebreak. Extracted out of the
+ * component so this comparator logic has real unit-test coverage
+ * (`fill-stations-list.test.ts`) independent of `useGeolocation`/React.
+ */
+export function sortFillStations(markers: LdsStatusRow[], from: LatLng | null): SortedFillStation[] {
+  return [...markers]
+    .map((marker) => ({ marker, miles: from ? distanceMiles(from, marker) : null }))
+    .sort((a, b) => {
+      const statusDiff = STATUS_PRIORITY[a.marker.status] - STATUS_PRIORITY[b.marker.status];
+      if (statusDiff !== 0) return statusDiff;
+      if (a.miles !== null && b.miles !== null) return a.miles - b.miles;
+      return a.marker.name.localeCompare(b.marker.name);
+    });
+}

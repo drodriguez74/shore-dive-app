@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeMapEmptyStateMessage, nextSearchStateFromResponse, siteShoreAccessCategory } from "./dive-site-explorer";
+import {
+  computeMapEmptyStateMessage,
+  nextAiSearchStateFromResponse,
+  nextSearchStateFromResponse,
+  siteShoreAccessCategory,
+} from "./dive-site-explorer";
 import type { SiteMarker } from "@/lib/sites/types";
 
 function site(overrides: Partial<SiteMarker> = {}): SiteMarker {
@@ -146,6 +151,34 @@ describe("computeMapEmptyStateMessage — shore-access filter (2026-08-11)", () 
   });
 });
 
+describe("computeMapEmptyStateMessage — manual map-pan location (2026-08-11)", () => {
+  // Found while building "Fetch dive sites here": the existing copy always
+  // said "your location", which stops being literally true once `hasCoords`
+  // is satisfied by a location the diver picked on the map rather than their
+  // own geolocation.
+
+  it("says 'this location' instead of 'your location' when isManualLocation is set", () => {
+    const msg = computeMapEmptyStateMessage({ ...BASE, isManualLocation: true });
+    expect(msg).toContain("No dive sites within 25 mi of this location.");
+    expect(msg).not.toMatch(/your location/);
+  });
+
+  it("still says 'your location' by default (isManualLocation omitted)", () => {
+    const msg = computeMapEmptyStateMessage(BASE);
+    expect(msg).toContain("your location");
+  });
+
+  it("applies the manual-location wording to the filtered-results branch too", () => {
+    const msg = computeMapEmptyStateMessage({ ...BASE, siteTypeFilter: "cave", isManualLocation: true });
+    expect(msg).toContain("No cave sites within 25 mi of this location.");
+  });
+
+  it("applies the manual-location wording to the searched-externally branch too", () => {
+    const msg = computeMapEmptyStateMessage({ ...BASE, searchedExternally: true, isManualLocation: true });
+    expect(msg).toContain("no dive sites within 25 mi of this location.");
+  });
+});
+
 describe("nextSearchStateFromResponse", () => {
   // Found 2026-08-10 (founder-reported live bug): the map's pins vanished
   // and the shore-access filter showed zero results, even though the
@@ -210,5 +243,55 @@ describe("nextSearchStateFromResponse", () => {
   it("tags the state with the radius it was searched at, matching the request that produced it", () => {
     const state = nextSearchStateFromResponse({ sites: [], error: null, searchedExternally: false }, 250);
     expect(state.radiusMiles).toBe(250);
+  });
+});
+
+describe("nextAiSearchStateFromResponse", () => {
+  // Found live 2026-08-11, the same bug class as nextSearchStateFromResponse
+  // above, reproduced on the AI-search-fallback path: POST
+  // /api/sites/research-area deliberately returns HTTP 200 with `error` set
+  // for an upstream (Brave/Gemini) failure — a real Gemini free-tier quota
+  // error rendered identically to "searched the web, found nothing here"
+  // before this fix.
+
+  it("treats an HTTP-200 response with error set as a failure, not a legitimate empty result", () => {
+    const state = nextAiSearchStateFromResponse(
+      { candidates: [], error: "The web-search fallback has hit its free daily limit for now — try again later." },
+      true,
+      200,
+    );
+    expect(state.status).toBe("error");
+    expect(state.candidates).toEqual([]);
+    expect(state.error).toContain("free daily limit");
+  });
+
+  it("treats a non-ok response as a failure", () => {
+    const state = nextAiSearchStateFromResponse({ error: "Sign in required." }, false, 401);
+    expect(state.status).toBe("error");
+    expect(state.error).toBe("Sign in required.");
+  });
+
+  it("falls back to a status-coded message when a non-ok response has no error field", () => {
+    const state = nextAiSearchStateFromResponse({}, false, 500);
+    expect(state.status).toBe("error");
+    expect(state.error).toContain("500");
+  });
+
+  it("treats a genuinely empty result (ok, no error) as a real done state, not an error", () => {
+    const state = nextAiSearchStateFromResponse({ candidates: [], error: null }, true, 200);
+    expect(state.status).toBe("done");
+    expect(state.candidates).toEqual([]);
+    expect(state.error).toBeNull();
+  });
+
+  it("passes real candidates through unchanged on a genuine success", () => {
+    const candidates = [{ name: "Real Site" } as never];
+    const state = nextAiSearchStateFromResponse({ candidates, error: null }, true, 200);
+    expect(state).toEqual({ status: "done", candidates, error: null });
+  });
+
+  it("defaults candidates to an empty array when the response omits the field", () => {
+    const state = nextAiSearchStateFromResponse({ error: null }, true, 200);
+    expect(state.candidates).toEqual([]);
   });
 });

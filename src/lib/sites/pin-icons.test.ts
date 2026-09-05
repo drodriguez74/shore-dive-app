@@ -120,6 +120,7 @@ describe("pinIconName", () => {
       siteType: "shipwreck",
       isCommunity: true,
       hasHazardReport: false,
+      hazardStale: false,
       legalTier: "rose",
     };
     expect(pinIconName(spec)).toBe(pinIconName({ ...spec }));
@@ -131,6 +132,7 @@ describe("pinIconName", () => {
         siteType: "cave",
         isCommunity: true,
         hasHazardReport: true,
+        hazardStale: false,
         legalTier: "amber",
       }),
     ).toBe("site-pin-cave-community-hazard-amber");
@@ -140,9 +142,54 @@ describe("pinIconName", () => {
         siteType: "shore_reef",
         isCommunity: false,
         hasHazardReport: false,
+        hazardStale: false,
         legalTier: null,
       }),
     ).toBe("site-pin-shore_reef-verified-clear-none");
+  });
+
+  // T13 v5 addition: a stale hazard report's most recent report gets its own
+  // name segment, distinct from a fresh/aging one — see PinIconSpec's own
+  // header for why this piggybacks on the hazard dimension rather than
+  // becoming a fifth independent one.
+  it("distinguishes a stale hazard report from a fresh/aging one in the name", () => {
+    const freshName = pinIconName({
+      siteType: "shore_reef",
+      isCommunity: false,
+      hasHazardReport: true,
+      hazardStale: false,
+      legalTier: null,
+    });
+    const staleName = pinIconName({
+      siteType: "shore_reef",
+      isCommunity: false,
+      hasHazardReport: true,
+      hazardStale: true,
+      legalTier: null,
+    });
+    expect(staleName).toBe("site-pin-shore_reef-verified-hazard-stale-none");
+    expect(staleName).not.toBe(freshName);
+  });
+
+  // `hazardStale` is meaningless without `hasHazardReport` (see PinIconSpec's
+  // header) — asserting this so a future refactor can't accidentally start
+  // encoding it there and silently doubling the "clear" name space.
+  it("ignores hazardStale entirely when there is no hazard report on file", () => {
+    const withoutStaleFlag = pinIconName({
+      siteType: "cave",
+      isCommunity: false,
+      hasHazardReport: false,
+      hazardStale: false,
+      legalTier: null,
+    });
+    const withStaleFlagSetAnyway = pinIconName({
+      siteType: "cave",
+      isCommunity: false,
+      hasHazardReport: false,
+      hazardStale: true,
+      legalTier: null,
+    });
+    expect(withStaleFlagSetAnyway).toBe(withoutStaleFlag);
   });
 
   it("produces a unique name for every spec in the full space", () => {
@@ -184,15 +231,20 @@ describe("pinIconName", () => {
 describe("allPinIconSpecs", () => {
   // Count is derived from the input dimensions, never hardcoded: if a fifth
   // visual dimension (or a seventh site type) is added, this stays honest
-  // instead of failing against a stale magic number.
+  // instead of failing against a stale magic number. `hazardStale` isn't a
+  // flat ×2 like the other dimensions — see PinIconSpec's header — so the
+  // hazard/stale combinations are counted explicitly (1 "clear" state + 2
+  // "has a report" states: fresh/aging-equivalent and stale) rather than
+  // folded into a single multiplier.
   it("enumerates the full cross product of every visual dimension", () => {
-    const expected = SITE_TYPES.length * 2 /* provenance */ * 2 /* hazard */ * ALL_LEGAL_TIERS.length;
+    const hazardCombinations = 1 /* no report */ + 2 /* report: not-stale, stale */;
+    const expected = SITE_TYPES.length * 2 /* provenance */ * hazardCombinations * ALL_LEGAL_TIERS.length;
     expect(allPinIconSpecs()).toHaveLength(expected);
   });
 
   it("contains no duplicate specs", () => {
     const keys = allPinIconSpecs().map(
-      (spec) => `${spec.siteType}|${spec.isCommunity}|${spec.hasHazardReport}|${spec.legalTier}`,
+      (spec) => `${spec.siteType}|${spec.isCommunity}|${spec.hasHazardReport}|${spec.hazardStale}|${spec.legalTier}`,
     );
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -213,24 +265,44 @@ describe("allPinIconSpecs", () => {
     expect(new Set(specs.map((spec) => spec.legalTier))).toEqual(new Set(ALL_LEGAL_TIERS));
   });
 
+  // `hazardStale` only varies when there's actually a hazard fill to
+  // de-emphasize — see PinIconSpec's own header. Asserted here so a future
+  // change that made it vary independently (silently doubling every
+  // "clear"-state icon) would fail loudly.
+  it("only varies hazardStale for specs that have a hazard report", () => {
+    const specs = allPinIconSpecs();
+    const clearSpecs = specs.filter((spec) => !spec.hasHazardReport);
+    expect(clearSpecs.every((spec) => spec.hazardStale === false)).toBe(true);
+
+    const hazardSpecs = specs.filter((spec) => spec.hasHazardReport);
+    expect(new Set(hazardSpecs.map((spec) => spec.hazardStale))).toEqual(new Set([false, true]));
+  });
+
   // The map registers one image per spec up front, then every rendered site
   // looks its icon up by name. Any real site whose (type × provenance ×
-  // hazard × legal status) combination is missing from this enumeration would
-  // reference an unregistered image and render as nothing at all — an
-  // invisible dive site, which is the failure mode that actually matters.
+  // hazard × staleness × legal status) combination is missing from this
+  // enumeration would reference an unregistered image and render as nothing
+  // at all — an invisible dive site, which is the failure mode that actually
+  // matters.
   it("covers every icon name a real site marker could resolve to", () => {
     const registered = new Set(allPinIconSpecs().map(pinIconName));
     for (const siteType of ALL_SITE_TYPES) {
       for (const provenance of ["VERIFIED", "COMMUNITY"] as const) {
         for (const hasHazardReport of [false, true]) {
-          for (const status of ALL_LEGAL_ACCESS_STATUSES) {
-            const name = pinIconName({
-              siteType,
-              isCommunity: provenance === "COMMUNITY",
-              hasHazardReport,
-              legalTier: legalGlyphTier(status),
-            });
-            expect(registered.has(name), `no icon registered for "${name}"`).toBe(true);
+          // Mirrors `allPinIconSpecs`' own asymmetric enumeration: staleness
+          // is only a real, distinct state to check when there's a report.
+          const hazardStaleValues = hasHazardReport ? [false, true] : [false];
+          for (const hazardStale of hazardStaleValues) {
+            for (const status of ALL_LEGAL_ACCESS_STATUSES) {
+              const name = pinIconName({
+                siteType,
+                isCommunity: provenance === "COMMUNITY",
+                hasHazardReport,
+                hazardStale,
+                legalTier: legalGlyphTier(status),
+              });
+              expect(registered.has(name), `no icon registered for "${name}"`).toBe(true);
+            }
           }
         }
       }
