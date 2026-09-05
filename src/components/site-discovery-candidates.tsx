@@ -1,14 +1,11 @@
 "use client";
 
 /**
- * Renders candidates from the map-pan AI-assisted discovery fallback
- * (`plan.md` Resolved Spec Decision #10, 2026-08-11) with a per-card
- * instant "Add to map" action — the founder's explicit design: no
- * moderation queue, results usable immediately. Reuses
- * `SiteResearchSummary` for each candidate's summary/citations/disclosure
- * rather than re-inventing that rendering — it already carries the exact
- * "AI-assisted web research — not independently verified" badge this data
- * needs, same standing rule `shore_access` observes.
+ * Candidates from the map-pan AI-assisted discovery fallback (`plan.md`
+ * Resolved Spec Decision #10) with a per-card instant "Add to map" — no
+ * moderation queue, results usable immediately. Reuses `SiteResearchSummary`
+ * for the summary/citations/disclosure so the "not independently verified"
+ * badge is identical everywhere it appears.
  */
 
 import { useState } from "react";
@@ -20,18 +17,21 @@ import type { CandidateSite } from "@/lib/site-discovery/area-research";
 export interface SiteDiscoveryCandidatesProps {
   candidates: CandidateSite[];
   /** Called with the newly-inserted site (already shaped as a `SiteMarker`)
-   * right after a successful add — the caller is responsible for merging
-   * it into whatever feeds the map/list, so it appears immediately. */
+   * right after a successful add — the caller merges it into whatever feeds
+   * the map/list so it appears immediately. */
   onAdded: (site: SiteMarker) => void;
 }
 
 type AddStatus = "idle" | "adding" | "added" | "error";
 
+const linkClass =
+  "font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300";
+
 export function SiteDiscoveryCandidates({ candidates, onAdded }: SiteDiscoveryCandidatesProps) {
   const [statuses, setStatuses] = useState<Record<number, AddStatus>>({});
   const [errors, setErrors] = useState<Record<number, string>>({});
 
-  async function handleAdd(index: number, candidate: CandidateSite) {
+  async function handleAdd(index: number, candidate: CandidateSite, coordsOverride?: { latitude: number; longitude: number }) {
     setStatuses((prev) => ({ ...prev, [index]: "adding" }));
     try {
       const response = await fetch("/api/sites/candidates/add", {
@@ -39,8 +39,8 @@ export function SiteDiscoveryCandidates({ candidates, onAdded }: SiteDiscoveryCa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: candidate.name,
-          latitude: candidate.latitude,
-          longitude: candidate.longitude,
+          latitude: coordsOverride?.latitude ?? candidate.latitude,
+          longitude: coordsOverride?.longitude ?? candidate.longitude,
           site_type: candidate.site_type,
           depth_min_ft: candidate.depth_min_ft,
           depth_max_ft: candidate.depth_max_ft,
@@ -104,15 +104,93 @@ export function SiteDiscoveryCandidates({ candidates, onAdded }: SiteDiscoveryCa
               />
             </div>
 
-            {!hasCoordinates && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                No confirmed coordinates in the search results — can&apos;t be placed on the map directly.
-              </p>
+            {/* No coordinates from the pipeline isn't a dead end: link the diver
+                out to look the site up, and let them add it once they have a
+                real lat/long. The add route validates the coordinates. */}
+            {!hasCoordinates && status !== "added" && (
+              <div className="mt-2 space-y-2">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  No confirmed coordinates in the search results — find them to place this on the map.
+                </p>
+                <div>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(candidate.name)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`text-xs ${linkClass}`}
+                  >
+                    Look up “{candidate.name}” on Google Maps →
+                  </a>
+                </div>
+                <ManualCoordinateEntry
+                  busy={status === "adding"}
+                  onSubmit={(latitude, longitude) => handleAdd(index, candidate, { latitude, longitude })}
+                />
+              </div>
             )}
+
             {status === "error" && <p className="mt-2 text-xs text-rose-700 dark:text-rose-400">{errors[index]}</p>}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** Reveal-on-demand lat/long inputs for a candidate the pipeline couldn't
+ * geolocate. Holds its own draft state; the parent owns the actual add. */
+function ManualCoordinateEntry({
+  busy,
+  onSubmit,
+}: {
+  busy: boolean;
+  onSubmit: (latitude: number, longitude: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`text-xs ${linkClass}`}>
+        I have the coordinates — add manually
+      </button>
+    );
+  }
+
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  const valid =
+    lat.trim() !== "" &&
+    lng.trim() !== "" &&
+    Number.isFinite(parsedLat) &&
+    Number.isFinite(parsedLng) &&
+    parsedLat >= -90 &&
+    parsedLat <= 90 &&
+    parsedLng >= -180 &&
+    parsedLng <= 180;
+
+  const fieldClass =
+    "mt-0.5 w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-black dark:border-depth-border dark:bg-depth-1 dark:text-zinc-50";
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <label className="flex flex-col text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Latitude
+        <input inputMode="decimal" value={lat} onChange={(event) => setLat(event.target.value)} className={fieldClass} />
+      </label>
+      <label className="flex flex-col text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Longitude
+        <input inputMode="decimal" value={lng} onChange={(event) => setLng(event.target.value)} className={fieldClass} />
+      </label>
+      <button
+        type="button"
+        disabled={!valid || busy}
+        onClick={() => onSubmit(parsedLat, parsedLng)}
+        className="min-h-[28px] rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:border-depth-border dark:disabled:bg-depth-2 dark:disabled:text-zinc-500"
+      >
+        {busy ? "Adding…" : "Add with these coordinates"}
+      </button>
+    </div>
   );
 }
