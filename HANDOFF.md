@@ -6,6 +6,31 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-09-06 — discovery-flow items 24 & 25 (two branches, unmerged)
+
+Two feature branches off `main` (`ddb65f1`), each with its own PR to open:
+
+**`feature/task-24-nearest-sites-search`** — `search-nearby` truncated at 200
+sites *and* the 200 kept were an alphabetical slice (`ORDER BY name`), not the
+nearest. New migration `0016_search_sites_near.sql` (SQL function, radius +
+distance in SQL, haversine matching `distance.ts`) + `queries.ts` `listSitesNear()`
+replacing the bounding-box path. **Migration not applied — manual + merge
+blocker.** Also: CLAUDE.md comment-brevity + concise-response rules. +10 tests.
+
+**`feature/task-25-no-coords-affordance`** — a discovery candidate with no
+coordinates was a dead greyed button. Now: a "Look up on Google Maps" link + a
+reveal-on-demand lat/long entry that adds the site once the diver supplies real
+coordinates. `site-discovery-candidates.tsx` + new test (+5). No migration.
+
+Both: `tsc`/lint/build clean. The two branches don't touch the same files (24 =
+queries/route/explorer map-note; 25 = candidates component only) so merge order
+doesn't matter.
+
+**Last open discovery item:** `plan.md` 26 — shore-access copy on the preview
+sheet outside S. FL. Founder judgement call, not code.
+
+---
+
 ## 2026-09-05 (later still) — "Add to map" bugs 27, 28, 29 fixed
 
 Founder live-testing the discovery flow: after discovering sites and clicking
