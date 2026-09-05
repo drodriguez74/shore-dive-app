@@ -56,6 +56,16 @@ export interface MapViewport {
   zoom: number;
 }
 
+/** A location the diver explicitly picked via "Fetch dive sites here"
+ * (2026-08-11 map-pan discovery). Same `{latitude, longitude}` shape as
+ * `GeolocationCoords`, kept local rather than imported for the same reason
+ * the filter unions are — this module must not pull in a `"use client"`
+ * hook file. */
+export interface MapCenter {
+  latitude: number;
+  longitude: number;
+}
+
 export interface ExplorerPreferences {
   /** Last map viewport the diver left the map at. `null` means "never moved
    * the map" — the signal `SiteMap` uses to decide whether it may still
@@ -76,6 +86,15 @@ export interface ExplorerPreferences {
    * `likely`/`marginal` into one "accessible" option instead of one filter
    * value per raw `ShoreAccessConfidence` state. */
   shoreAccessFilter: ShoreAccessFilterValue;
+  /** Added 2026-09-05 (`plan.md` item 22). The location the diver last
+   * picked via "Fetch dive sites here", or `null` for "use my geolocation".
+   * Persisted so that navigating to a site detail page and back keeps the
+   * map's *data* over the panned area — previously only the map camera
+   * (`viewport`) survived, so a returning diver saw their panned-to region
+   * on screen but the nearby search silently ran against their real GPS,
+   * dropping any site they'd just added there. Cleared by "Use my location
+   * instead". */
+  manualCenter: MapCenter | null;
 }
 
 /** Matches `DiveSiteExplorer`'s first radius option and the "no filter"
@@ -87,6 +106,7 @@ export const DEFAULT_EXPLORER_PREFERENCES: ExplorerPreferences = {
   siteTypeFilter: "all",
   difficultyFilter: "all",
   shoreAccessFilter: "all",
+  manualCenter: null,
 };
 
 const SITE_TYPE_FILTER_VALUES: SiteTypeFilterValue[] = [
@@ -137,6 +157,18 @@ function parseViewport(value: unknown): MapViewport | null {
   return { longitude: candidate.longitude, latitude: candidate.latitude, zoom: candidate.zoom };
 }
 
+/** Same field-by-field validation as `parseViewport` — localStorage is
+ * user-writable and survives deploys, so a hand-edited or stale value must
+ * never hand a NaN/out-of-range coordinate to the search pipeline. */
+function parseMapCenter(value: unknown): MapCenter | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<MapCenter>;
+  if (!isFiniteNumber(candidate.latitude) || !isFiniteNumber(candidate.longitude)) return null;
+  if (candidate.latitude < -90 || candidate.latitude > 90) return null;
+  if (candidate.longitude < -180 || candidate.longitude > 180) return null;
+  return { latitude: candidate.latitude, longitude: candidate.longitude };
+}
+
 /** `Infinity` is a legitimate radius here (the "All" option) but does not
  * survive `JSON.stringify` — it serializes to `null`. Persisted as the
  * sentinel string `"all"` and restored back to `Infinity`. */
@@ -180,6 +212,7 @@ function readPersisted(): ExplorerPreferences {
       siteTypeFilter: parseSiteTypeFilter(parsed.siteTypeFilter),
       difficultyFilter: parseDifficultyFilter(parsed.difficultyFilter),
       shoreAccessFilter: parseShoreAccessFilter(parsed.shoreAccessFilter),
+      manualCenter: parseMapCenter(parsed.manualCenter),
     };
   } catch {
     // Corrupt/unreadable storage is not exceptional here — this is UI
@@ -218,6 +251,7 @@ function commit(next: ExplorerPreferences): void {
           siteTypeFilter: next.siteTypeFilter,
           difficultyFilter: next.difficultyFilter,
           shoreAccessFilter: next.shoreAccessFilter,
+          manualCenter: next.manualCenter,
         }),
       );
     } catch {
@@ -249,6 +283,7 @@ export interface UseExplorerPreferencesResult extends ExplorerPreferences {
   setSiteTypeFilter: (siteTypeFilter: SiteTypeFilterValue) => void;
   setDifficultyFilter: (difficultyFilter: DifficultyFilterValue) => void;
   setShoreAccessFilter: (shoreAccessFilter: ShoreAccessFilterValue) => void;
+  setManualCenter: (manualCenter: MapCenter | null) => void;
 }
 
 export function useExplorerPreferences(): UseExplorerPreferencesResult {
@@ -279,6 +314,10 @@ export function useExplorerPreferences(): UseExplorerPreferencesResult {
     commit({ ...getSnapshot(), shoreAccessFilter });
   }, []);
 
+  const setManualCenter = useCallback((manualCenter: MapCenter | null) => {
+    commit({ ...getSnapshot(), manualCenter });
+  }, []);
+
   return {
     ...preferences,
     isHydrated,
@@ -287,5 +326,6 @@ export function useExplorerPreferences(): UseExplorerPreferencesResult {
     setSiteTypeFilter,
     setDifficultyFilter,
     setShoreAccessFilter,
+    setManualCenter,
   };
 }

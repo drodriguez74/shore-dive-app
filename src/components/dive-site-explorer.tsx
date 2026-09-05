@@ -405,10 +405,12 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
     siteTypeFilter,
     difficultyFilter,
     shoreAccessFilter,
+    manualCenter,
     setRadiusMiles,
     setSiteTypeFilter,
     setDifficultyFilter,
     setShoreAccessFilter,
+    setManualCenter,
   } = useExplorerPreferences();
   const [search, setSearch] = useState<SearchNearbyState>(IDLE_SEARCH_STATE);
   // Map-pan discovery (2026-08-11): a diver panning the map to somewhere
@@ -419,9 +421,31 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
   // `hasPositionedRef`/`savedViewport` already use in `site-map.tsx` for the
   // map's own position. Once set, geolocation updates no longer silently
   // override it — only "Use my location instead" (below) clears it.
-  const [manualCenter, setManualCenter] = useState<GeolocationCoords | null>(null);
+  //
+  // `manualCenter` is persisted (2026-09-05, `plan.md` item 22): it lives in
+  // `useExplorerPreferences` alongside the map viewport it moves in lockstep
+  // with, so navigating to a site detail page and back keeps the map's data
+  // over the panned area — not just the camera. Previously a returning diver
+  // saw their panned-to region on screen while the search silently ran
+  // against their real GPS, so any site they'd just added there vanished.
   const effectiveCoords = manualCenter ?? coords;
   const [aiSearch, setAiSearch] = useState<AiSearchState>(IDLE_AI_SEARCH_STATE);
+
+  // Back/forward-cache recovery (2026-09-05, `plan.md` item 23). When a diver
+  // taps a pin, opens the site detail page, then hits Back, most browsers
+  // restore this page from the bfcache *without remounting* — so the search
+  // effect below never re-runs, and if its in-flight fetch was aborted on
+  // the way out (see the effect's cleanup), the map is left frozen on a
+  // stale/loading state until a manual refresh. Bumping this nonce on a
+  // persisted `pageshow` forces exactly one clean re-fetch.
+  const [bfcacheNonce, setBfcacheNonce] = useState(0);
+  useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) setBfcacheNonce((n) => n + 1);
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   /** Wraps `setManualCenter` so picking a new location also clears any
    * AI-search results from wherever the diver was previously — stale
@@ -536,7 +560,7 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
       clearTimeout(loadingTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveCoords?.latitude, effectiveCoords?.longitude, radiusMiles]);
+  }, [effectiveCoords?.latitude, effectiveCoords?.longitude, radiusMiles, bfcacheNonce]);
 
   const sitesWithDistance = useMemo<SiteWithDistance[] | null>(() => {
     if (!effectiveCoords) return null;

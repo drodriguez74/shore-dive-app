@@ -194,6 +194,7 @@ describe("useExplorerPreferences", () => {
       siteTypeFilter: "spring",
       difficultyFilter: "beginner",
       shoreAccessFilter: "boat",
+      manualCenter: null,
     };
     seedStorage(JSON.stringify(next));
 
@@ -213,5 +214,41 @@ describe("useExplorerPreferences", () => {
     });
     expect(result.current.viewport).toEqual({ longitude: -80, latitude: 26, zoom: 12 });
     expect(result.current.radiusMiles).toBe(50);
+  });
+
+  describe("manualCenter (plan.md item 22 — panned-to location survives navigation)", () => {
+    it("defaults to null", () => {
+      const { result } = renderHook(() => useExplorerPreferences());
+      expect(result.current.manualCenter).toBeNull();
+    });
+
+    it("round-trips a picked location so a returning diver keeps searching the panned area", () => {
+      const { result } = renderHook(() => useExplorerPreferences());
+      act(() => {
+        result.current.setManualCenter({ latitude: 26.6, longitude: -78.2 });
+      });
+      expect(result.current.manualCenter).toEqual({ latitude: 26.6, longitude: -78.2 });
+      expect(readStorage().manualCenter).toEqual({ latitude: 26.6, longitude: -78.2 });
+    });
+
+    it("clears back to null (the 'Use my location instead' path)", () => {
+      const { result } = renderHook(() => useExplorerPreferences());
+      act(() => {
+        result.current.setManualCenter({ latitude: 26.6, longitude: -78.2 });
+      });
+      act(() => {
+        result.current.setManualCenter(null);
+      });
+      expect(result.current.manualCenter).toBeNull();
+      expect(readStorage().manualCenter).toBeNull();
+    });
+
+    it("rejects an out-of-range or malformed persisted value rather than feeding it to the search", () => {
+      seedStorage(JSON.stringify({ manualCenter: { latitude: 200, longitude: -78 } }));
+      expect(renderHook(() => useExplorerPreferences()).result.current.manualCenter).toBeNull();
+
+      seedStorage(JSON.stringify({ manualCenter: { latitude: "26", longitude: -78 } }));
+      expect(renderHook(() => useExplorerPreferences()).result.current.manualCenter).toBeNull();
+    });
   });
 });
