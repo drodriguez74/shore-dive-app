@@ -6,6 +6,40 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-09-05 (later still) — "Add to map" bugs 27, 28, 29 fixed
+
+Founder live-testing the discovery flow: after discovering sites and clicking
+"Add to map", (a) the candidate list refreshed and wouldn't let you add more,
+(b) the added pin wasn't clickable through to its detail page, and (c) once one
+site was on the map (or after a reload) there was no way back to the rest of the
+web-search list or to re-run the search.
+
+- **Item 27** — `handleCandidateAdded` merges the added site into `search.sites`
+  for an instant pin, which flipped the `search.sites.length === 0` gate that
+  rendered the whole web-search panel → first add unmounted it. Folded into 29.
+- **Item 28** — `POST /api/sites/candidates/add` returned a marker built from the
+  row PostgREST echoes back, where `numeric` columns (`latitude`/`longitude`/
+  `depth_*`) come back as **strings**. String coords → broken GeoJSON feature →
+  pin mispositioned / not hit-testable. Route now builds the marker from its
+  already-parsed numeric inputs; only `id` comes from the insert. New
+  `route.test.ts` (5 tests — first API-route test in the repo).
+- **Item 29** — founder decision: **make the web search re-runnable at any
+  manually-picked location**, not just where OSM found nothing (rejected local
+  candidate persistence / a per-area cache). `dive-site-explorer.tsx`:
+  `webSearchAvailableHere = manualCenter !== null && useServerResult` (was the
+  `noLocalOrOsmResults` zero-gate), adaptive copy, "Search the web again" link.
+  Cost backstop stays the `research-area` daily cap. Not offered at plain GPS.
+  No new test — inline render-gating, no render-test harness for this component;
+  **needs a manual smoke-test on deploy.**
+
+`tsc`/lint/**1032 passing**/build all clean.
+
+**Still open** (`plan.md` 24–26): 200-site truncation (24), no-coords "research
+further" affordance (25), shore-access silence outside S. FL (26 — product
+judgement, needs founder input).
+
+---
+
 ## 2026-09-05 (later) — discovery-flow bugs 22 & 23 fixed
 
 Fixed and pushed on top of the T24–T30 branch:

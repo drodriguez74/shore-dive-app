@@ -144,25 +144,32 @@ export async function POST(request: NextRequest) {
         research_summary_updated_at: new Date().toISOString(),
         created_by: user.id,
       })
-      .select(
-        "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access, shore_access_method",
-      )
+      .select("id")
       .single();
 
     if (error) throw error;
 
+    // Build the marker from the values we already parsed and validated,
+    // NOT from the row PostgREST echoes back: `latitude`/`longitude`/
+    // `depth_*` are Postgres `numeric` columns and come back as JSON
+    // *strings*. Every other site marker in the app is routed through
+    // `queries.ts`'s `toNumber` before it reaches the client for exactly
+    // this reason — string coordinates land in `site-map.tsx`'s GeoJSON
+    // feature as `["-80.1", "25.7"]`, so the pin renders at a broken
+    // position and isn't clickable (reported 2026-09-05). Only `id` has to
+    // come from the insert; everything else is authoritative here already.
     const marker: SiteMarker = {
       id: data.id,
-      name: data.name,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      provenance: data.provenance,
-      legal_access_status: data.legal_access_status,
-      site_type: data.site_type,
-      depth_min_ft: data.depth_min_ft,
-      depth_max_ft: data.depth_max_ft,
-      shore_access: data.shore_access,
-      shore_access_method: data.shore_access_method,
+      name,
+      latitude,
+      longitude,
+      provenance: "COMMUNITY",
+      legal_access_status: null,
+      site_type: siteType,
+      depth_min_ft: depthMinFt,
+      depth_max_ft: depthMaxFt,
+      shore_access: shoreAccess.confidence,
+      shore_access_method: shoreAccess.method,
       hasHazardReport: false,
     };
 

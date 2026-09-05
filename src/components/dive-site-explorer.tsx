@@ -671,14 +671,24 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
     isManualLocation: manualCenter !== null,
   });
 
-  // Gate for the AI-search fallback: only once a manually-picked location's
-  // server search has genuinely come back with zero sites — checked against
-  // the RAW server result (`search.sites`), not `mapSiteMarkers`, since the
-  // latter can be empty purely because a type/difficulty/shore-access filter
-  // is active even though OSM actually found real sites here. Offering a
-  // costed web search in that case would be wrong: the free tier didn't
-  // fail, a filter is just hiding its results.
-  const noLocalOrOsmResults = manualCenter !== null && useServerResult && (search.sites?.length ?? 0) === 0;
+  // The web-search discovery fallback is available at any *manually-picked*
+  // location once its server search has landed — NOT only when the local/OSM
+  // search found nothing (founder decision, 2026-09-05, `plan.md` item 29):
+  // "some sites here" never means "every site here", and a diver who added
+  // one candidate and reloaded the page had no way back to the rest, or to
+  // re-run the search. Real per-call cost is bounded server-side by the
+  // shared daily cap (`research-area` route), not by hiding the entry point.
+  // Still gated to a manual location: offering a metered search on every
+  // homepage load at the diver's own GPS would be wrong, and `handleAiSearch`
+  // needs a `manualCenter` to search around anyway.
+  //
+  // `serverFoundNothingHere` still drives the *copy* (a genuine empty result
+  // reads differently from "there are sites, but maybe not all of them") and
+  // is checked against the RAW server result (`search.sites`), not
+  // `mapSiteMarkers` — the latter can be empty purely because a
+  // type/difficulty/shore-access filter is hiding real OSM results.
+  const serverFoundNothingHere = manualCenter !== null && useServerResult && (search.sites?.length ?? 0) === 0;
+  const webSearchAvailableHere = manualCenter !== null && useServerResult;
 
   return (
     <>
@@ -707,10 +717,14 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
         />
       </div>
 
-      {noLocalOrOsmResults && (
+      {webSearchAvailableHere && (
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Nothing found here yet via the free OpenStreetMap search.
+            {serverFoundNothingHere
+              ? "Nothing found here yet via the free OpenStreetMap search."
+              : aiSearch.status === "done"
+                ? "Web-search results for this location:"
+                : "Not seeing a dive site you know is here?"}
           </p>
           {!isSignedIn ? (
             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -746,6 +760,13 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
           ) : (
             <div className="mt-3">
               <SiteDiscoveryCandidates candidates={aiSearch.candidates} onAdded={handleCandidateAdded} />
+              <button
+                type="button"
+                onClick={handleAiSearch}
+                className="mt-3 text-xs font-medium text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
+              >
+                Search the web again
+              </button>
             </div>
           )}
         </div>
