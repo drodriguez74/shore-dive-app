@@ -9,19 +9,22 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 ## 2026-09-06 — items 24 & 25 merged to `main`
 
 **Accomplishments**
-- **T24–T30 merged to `main`** earlier (PR #7, `ddb65f1`); other 3 feature branches were already merged.
-- Discovery items **27/28/29** fixed in `main`: panel unmounting on add, string-coord pin bug, web-search re-runnable at any manual location.
-- **Item 24** (branch `feature/task-24-nearest-sites-search`, now merged) — `search-nearby` truncated at 200 sites in dense areas, and the 200 kept were an *alphabetical* slice (`ORDER BY name`), not the nearest. New `search_sites_near` SQL fn (migration **`0016`, applied to the live project 2026-09-06**), `queries.ts` `listSitesNear()` replaces `listSitesInBounds` + JS sort in the route. 200 cap stays (Next/undici large-body bug) but now clips the *farthest*; `truncated` surfaced on the map too. +10 tests.
-- **Item 25** (branch `feature/task-25-no-coords-affordance`, now merged) — no-coords candidates get a "Look up on Google Maps" link + reveal-on-demand manual lat/long entry (range-validated client + add-route) instead of a dead greyed button. +5 tests.
+- **Item 24** merged (`42fa015`): `search_sites_near` SQL fn (migration `0016`, applied live) + `listSitesNear()` replace the alphabetical `LIMIT 200` slice; nearest-N within radius, done server-side. +10 tests.
+- **Item 25** merged (`45b1c54`): no-coords candidates get a Google Maps link + reveal-on-demand manual lat/long entry (validated client + add-route). +5 tests.
+- Merge doc-conflicts (HANDOFF/TASKS/plan) resolved. `tsc`/lint/**1047 passing**/build all clean. Local `main` is **5 ahead of `origin/main` — not pushed yet.**
 
 **Decisions**
-- Item 29: re-runnable web search chosen over persisting candidates / a per-area cache (cost bounded by the existing daily cap).
-- Comment brevity + concise LLM responses codified in CLAUDE.md.
+- Migration `0016` applied to the live Supabase project by founder before merge.
+- Branches merged locally (no `gh` on this machine); push to `main` pending founder OK.
+
+**Session-memory**
+- Nothing new for `/memory` — `0016` mechanics + merge state captured here and in TASKS/plan.
 
 **Next**
-1. `plan.md` item **26** — shore-access copy on the preview sheet outside S. FL. Founder judgement, not code.
-2. `NEXT_PUBLIC_LDS_CLAIM_EMAIL` → real inbox.
-3. Optional dead-code sweep: `listSitesInBounds` / `boundingBoxForRadius` / `sortByDistanceWithinRadius` are now unused by app code (kept — tested, plausible future viewport primitive).
+1. Push `main` to origin (5 commits: 2 merges + this handoff).
+2. `plan.md` item **26** — shore-access copy on the preview sheet outside S. FL. Founder judgement, not code.
+3. `NEXT_PUBLIC_LDS_CLAIM_EMAIL` → real inbox.
+4. Optional dead-code sweep: `listSitesInBounds` / `boundingBoxForRadius` / `sortByDistanceWithinRadius` now unused by app code (kept — tested).
 
 ---
 
