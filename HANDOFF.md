@@ -26,13 +26,15 @@ Session stopped early (usage limit). Branch `feature/offline-bundles-and-mainten
 - #14 Webcam workers on `claude-haiku-5-5` (still disabled).
 - Extra: saved offline sites auto-refresh when the app is opened online (stale > 6h).
 
+**Also done since (all pushed)**
+- #15 `TASKS.md` slimmed to one line per finished item; full narrative in `TASKS_ARCHIVE.md`.
+- `PRIVACY_POLICY_DRAFT.md` written for founder review (not published).
+- Docs synced: `CLAUDE.md`, `.env.local.example` (`MODERATOR_EMAILS`), `supabase/README.md` (0017 + retention).
+
 **Not started**
 - #11 Trim over-long comments in `dive-site-explorer.tsx`, `queries.ts`, `sites/[id]/page.tsx` (leave `shore-access.ts` per-entry citations — they are data provenance).
-- #12 Split `dive-site-explorer.tsx` (nearby-search + web-discovery logic into hooks).
-- #15 Slim `TASKS.md` (move finished detail to an archive file).
-- Privacy-policy draft for founder review.
-- Doc sync for this batch: `CLAUDE.md` (moderators, rate limit, backup, CI), `TASKS.md`, `supabase/README.md` (0017 + retention/PII note for dive logs), `.env.local.example` (`MODERATOR_EMAILS`).
-- Not verified in a real browser yet: the dive-log backup panel, homepage streaming, auto-refresh.
+- #12 Split `dive-site-explorer.tsx` (nearby-search effect + web-discovery state into hooks; keep the exported pure helpers importable from the same path — tests import them).
+- Not verified in a real browser yet: the dive-log backup panel, homepage streaming, saved-site auto-refresh.
 
 **Founder actions added by this batch**
 1. Set `MODERATOR_EMAILS` (your Google email) in `.env.local` and Vercel — until then nobody, including you, can open the moderation queue.
