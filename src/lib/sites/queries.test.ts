@@ -7,7 +7,6 @@ import {
   SITE_DETAIL_HAZARD_LIMIT,
   getSiteWithHazards,
   listLdsStatusMarkers,
-  listSitesInBounds,
   listSitesNear,
   listSitesWithHazardFlag,
 } from "./queries";
@@ -122,7 +121,6 @@ function siteRows(count: number) {
   return Array.from({ length: count }, (_, i) => siteRow({ id: `site-${i}`, name: `Site ${i}` }));
 }
 
-const FLORIDA_BOX = { north: 27, south: 26, east: -80, west: -81 };
 
 beforeEach(() => {
   mockCreateClient.mockReset();
@@ -134,228 +132,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-// ---------------------------------------------------------------------
-// listSitesInBounds — the bounded replacement for "select everything, then
-// filter by radius in JavaScript".
-// ---------------------------------------------------------------------
-
-describe("listSitesInBounds", () => {
-  it("filters latitude AND longitude server-side, in the query, for a normal (non-wrapping) box", async () => {
-    const recorder = useClient({ sites: { data: [siteRow()], error: null } });
-
-    const result = await listSitesInBounds(FLORIDA_BOX);
-
-    expect(result.error).toBeNull();
-    expect(recorder.callsFor("sites", "gte").map((c) => c.args)).toEqual([
-      ["latitude", 26],
-      ["longitude", -81],
-    ]);
-    expect(recorder.callsFor("sites", "lte").map((c) => c.args)).toEqual([
-      ["latitude", 27],
-      ["longitude", -80],
-    ]);
-    // A normal box must NOT use the antimeridian `or=(...)` form.
-    expect(recorder.callsFor("sites", "or")).toHaveLength(0);
-  });
-
-  it("applies an explicit default limit to the sites query", async () => {
-    const recorder = useClient({ sites: { data: [siteRow()], error: null } });
-
-    await listSitesInBounds(FLORIDA_BOX);
-
-    expect(recorder.callsFor("sites", "limit").map((c) => c.args)).toEqual([[DEFAULT_SITE_QUERY_LIMIT]]);
-  });
-
-  it("passes a caller-supplied limit through", async () => {
-    const recorder = useClient({ sites: { data: [siteRow()], error: null } });
-
-    await listSitesInBounds({ ...FLORIDA_BOX, limit: 25 });
-
-    expect(recorder.callsFor("sites", "limit")[0].args).toEqual([25]);
-  });
-
-  it("clamps a limit above PostgREST's own row ceiling — asking for more than the server will ever return would be a lie", async () => {
-    const recorder = useClient({ sites: { data: [siteRow()], error: null } });
-
-    await listSitesInBounds({ ...FLORIDA_BOX, limit: 100_000 });
-
-    expect(recorder.callsFor("sites", "limit")[0].args).toEqual([MAX_SITE_QUERY_LIMIT]);
-  });
-
-  it("clamps a zero/negative limit up to 1, and falls back to the default for a non-finite one — never to unbounded", async () => {
-    const zero = useClient({ sites: { data: [], error: null } });
-    await listSitesInBounds({ ...FLORIDA_BOX, limit: 0 });
-    expect(zero.callsFor("sites", "limit")[0].args).toEqual([1]);
-
-    const nan = useClient({ sites: { data: [], error: null } });
-    await listSitesInBounds({ ...FLORIDA_BOX, limit: Number.NaN });
-    expect(nan.callsFor("sites", "limit")[0].args).toEqual([DEFAULT_SITE_QUERY_LIMIT]);
-  });
-
-  it("scopes the hazard_reports read to the site ids actually returned, and bounds it — not a second full-table read", async () => {
-    const recorder = useClient({
-      sites: { data: [siteRow({ id: "a" }), siteRow({ id: "b" })], error: null },
-      hazard_reports: { data: [{ site_id: "b" }], error: null },
-    });
-
-    const result = await listSitesInBounds(FLORIDA_BOX);
-
-    expect(recorder.callsFor("hazard_reports", "in").map((c) => c.args)).toEqual([["site_id", ["a", "b"]]]);
-    expect(recorder.callsFor("hazard_reports", "limit").map((c) => c.args)).toEqual([[HAZARD_FLAG_QUERY_LIMIT]]);
-    expect(result.sites.map((s) => [s.id, s.hasHazardReport])).toEqual([
-      ["a", false],
-      ["b", true],
-    ]);
-  });
-
-  it("skips the hazard_reports round trip entirely when the bounds returned no sites", async () => {
-    const recorder = useClient({ sites: { data: [], error: null } });
-
-    const result = await listSitesInBounds(FLORIDA_BOX);
-
-    expect(result).toEqual({ sites: [], truncated: false, error: null });
-    expect(recorder.tablesQueried()).toEqual(["sites"]);
-  });
-
-  it("coerces PostgREST numeric-as-string coordinates to real numbers", async () => {
-    useClient({ sites: { data: [siteRow({ latitude: "26.7753", longitude: "-80.0431" })], error: null } });
-
-    const result = await listSitesInBounds(FLORIDA_BOX);
-
-    expect(result.sites[0].latitude).toBe(26.7753);
-    expect(result.sites[0].longitude).toBe(-80.0431);
-  });
-
-  describe("truncation", () => {
-    it("does not flag a result that came back under the limit", async () => {
-      useClient({ sites: { data: siteRows(9), error: null } });
-
-      const result = await listSitesInBounds({ ...FLORIDA_BOX, limit: 10 });
-
-      expect(result.truncated).toBe(false);
-      expect(console.warn).not.toHaveBeenCalled();
-    });
-
-    it("flags exactly at the limit boundary and logs a structured warning", async () => {
-      useClient({ sites: { data: siteRows(10), error: null } });
-
-      const result = await listSitesInBounds({ ...FLORIDA_BOX, limit: 10 });
-
-      expect(result.truncated).toBe(true);
-      expect(result.sites).toHaveLength(10);
-      expect(console.warn).toHaveBeenCalledTimes(1);
-      const logged = JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string);
-      expect(logged).toMatchObject({
-        level: "warn",
-        scope: "sites",
-        event: "sites.bounds_truncated",
-        siteCount: 10,
-        siteLimit: 10,
-        sitesTruncated: true,
-        hazardsTruncated: false,
-      });
-    });
-
-    it("also flags when the hazard read hits its own ceiling — an under-reported hazard flag fails toward looking safer than reality", async () => {
-      useClient({
-        sites: { data: siteRows(2), error: null },
-        hazard_reports: {
-          data: Array.from({ length: HAZARD_FLAG_QUERY_LIMIT }, () => ({ site_id: "site-0" })),
-          error: null,
-        },
-      });
-
-      const result = await listSitesInBounds({ ...FLORIDA_BOX, limit: 500 });
-
-      expect(result.truncated).toBe(true);
-      const logged = JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string);
-      expect(logged).toMatchObject({ sitesTruncated: false, hazardsTruncated: true });
-    });
-  });
-
-  describe("antimeridian (±180°) boxes", () => {
-    it("expresses a wrapping box (west > east) as an OR, so Pacific users don't silently get zero results", async () => {
-      const recorder = useClient({ sites: { data: [siteRow({ longitude: 179.5 })], error: null } });
-
-      const result = await listSitesInBounds({ north: 20, south: -20, west: 170, east: -170 });
-
-      expect(result.error).toBeNull();
-      expect(recorder.callsFor("sites", "or").map((c) => c.args)).toEqual([
-        ["longitude.gte.170,longitude.lte.-170"],
-      ]);
-      // Latitude is still a plain conjunction — latitude never wraps.
-      expect(recorder.callsFor("sites", "gte").map((c) => c.args)).toEqual([["latitude", -20]]);
-      expect(recorder.callsFor("sites", "lte").map((c) => c.args)).toEqual([["latitude", 20]]);
-    });
-
-    it("does not emit an unsatisfiable longitude conjunction for a wrapping box", async () => {
-      const recorder = useClient({ sites: { data: [], error: null } });
-
-      await listSitesInBounds({ north: 20, south: -20, west: 170, east: -170 });
-
-      const longitudeConjunctions = [
-        ...recorder.callsFor("sites", "gte"),
-        ...recorder.callsFor("sites", "lte"),
-      ].filter((call) => call.args[0] === "longitude");
-      expect(longitudeConjunctions).toEqual([]);
-    });
-  });
-
-  describe("invalid bounds", () => {
-    it("rejects a non-finite edge before issuing any query, rather than returning a zero-row answer indistinguishable from 'no sites here'", async () => {
-      const recorder = useClient();
-
-      const result = await listSitesInBounds({ ...FLORIDA_BOX, north: Number.NaN });
-
-      expect(result.sites).toEqual([]);
-      expect(result.truncated).toBe(false);
-      expect(result.error).toContain("finite numbers");
-      expect(recorder.calls).toEqual([]);
-      expect(mockCreateClient).not.toHaveBeenCalled();
-    });
-
-    it("rejects an inverted latitude box (north below south) before querying", async () => {
-      const recorder = useClient();
-
-      const result = await listSitesInBounds({ north: 10, south: 20, east: 5, west: -5 });
-
-      expect(result.sites).toEqual([]);
-      expect(result.error).toContain("north (10) is south of south (20)");
-      expect(recorder.calls).toEqual([]);
-    });
-  });
-
-  describe("error paths", () => {
-    it("returns { sites: [], error }, never throws, when the sites query fails", async () => {
-      useClient({ sites: { data: null, error: postgrestError("connection reset") } });
-
-      const result = await listSitesInBounds(FLORIDA_BOX);
-
-      expect(result).toEqual({ sites: [], truncated: false, error: "connection reset" });
-      expect(console.error).toHaveBeenCalledTimes(1);
-    });
-
-    it("returns { sites: [], error }, never throws, when the scoped hazard query fails", async () => {
-      useClient({
-        sites: { data: [siteRow()], error: null },
-        hazard_reports: { data: null, error: postgrestError("permission denied") },
-      });
-
-      const result = await listSitesInBounds(FLORIDA_BOX);
-
-      expect(result).toEqual({ sites: [], truncated: false, error: "permission denied" });
-    });
-
-    it("returns { sites: [], error }, never throws, when createClient itself throws (missing env vars)", async () => {
-      mockCreateClient.mockRejectedValue(new Error("Missing NEXT_PUBLIC_SUPABASE_URL"));
-
-      const result = await listSitesInBounds(FLORIDA_BOX);
-
-      expect(result).toEqual({ sites: [], truncated: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" });
-    });
-  });
 });
 
 // ---------------------------------------------------------------------
@@ -595,24 +371,19 @@ describe("map-pin column list", () => {
     "site_type",
   ];
 
-  it("names exactly the columns a pin needs, in both marker queries", async () => {
-    const bounded = useClient({ sites: { data: [siteRow()], error: null } });
-    await listSitesInBounds(FLORIDA_BOX);
-    const boundedColumns = bounded.callsFor("sites", "select")[0].args[0] as string;
-
-    const unbounded = useClient({ sites: { data: [siteRow()], error: null } });
+  it("names exactly the columns a pin needs", async () => {
+    const recorder = useClient({ sites: { data: [siteRow()], error: null } });
     await listSitesWithHazardFlag();
-    const unboundedColumns = unbounded.callsFor("sites", "select")[0].args[0] as string;
+    const columns = recorder.callsFor("sites", "select")[0].args[0] as string;
 
-    expect(boundedColumns).not.toBe("*");
-    expect(boundedColumns).toBe(unboundedColumns);
-    expect(boundedColumns.split(",").map((c) => c.trim()).sort()).toEqual(MARKER_COLUMNS);
+    expect(columns).not.toBe("*");
+    expect(columns.split(",").map((c) => c.trim()).sort()).toEqual(MARKER_COLUMNS);
   });
 
   it("leaves the detail-only shore-access explanation columns out — every pin in view pays for this list", async () => {
     const recorder = useClient({ sites: { data: [siteRow()], error: null } });
 
-    await listSitesInBounds(FLORIDA_BOX);
+    await listSitesWithHazardFlag();
 
     const selected = recorder.callsFor("sites", "select")[0].args[0] as string;
     expect(selected).not.toContain("shore_entry_id");
@@ -631,7 +402,7 @@ describe("map-pin column list", () => {
       },
     });
 
-    const result = await listSitesInBounds(FLORIDA_BOX);
+    const result = await listSitesWithHazardFlag();
 
     expect(result.sites[0]).toMatchObject({
       depth_min_ft: 15,
@@ -652,7 +423,7 @@ describe("map-pin column list", () => {
     // whose depth is in fact unknown.
     useClient({ sites: { data: [siteRow({ depth_min_ft: "deep", depth_max_ft: "" })], error: null } });
 
-    const result = await listSitesInBounds(FLORIDA_BOX);
+    const result = await listSitesWithHazardFlag();
 
     expect(result.sites[0].depth_min_ft).toBeNull();
     expect(result.sites[0].depth_max_ft).toBeNull();
@@ -665,7 +436,7 @@ describe("map-pin column list", () => {
     // row simply arrives without the keys.
     useClient({ sites: { data: [siteRow()], error: null } });
 
-    const result = await listSitesInBounds(FLORIDA_BOX);
+    const result = await listSitesWithHazardFlag();
 
     expect(result.sites[0]).toMatchObject({
       depth_min_ft: null,

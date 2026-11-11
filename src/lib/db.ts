@@ -9,8 +9,7 @@ import Dexie, { type EntityTable } from "dexie";
  *
  * `cachedSites.data` holds a site's whole verified bundle payload (site +
  * hazard reports, see `src/lib/offline/site-bundle-payload.ts`), written
- * only by `prefetch-site.ts` after integrity verification. `cachedHazards`
- * is currently unused — hazards travel inside that payload so a site and
+ * only by `prefetch-site.ts` after integrity verification, so a site and
  * its hazards are always saved and verified as one unit.
  *
  * `cachedAt` is the field the whole freshness/staleness story depends on
@@ -42,30 +41,18 @@ export interface CachedSiteRecord {
   cachedAt: Date;
 }
 
-export interface CachedHazardRecord {
-  /** Hazard report identifier. */
-  id: string;
-  /** The site this hazard record applies to. */
-  siteId: string;
-  name: string;
-  provenance?: CachedProvenance;
-  data: Record<string, unknown>;
-  cachedAt: Date;
-}
-
 class ShoreDiveOfflineDB extends Dexie {
   cachedSites!: EntityTable<CachedSiteRecord, "id">;
-  cachedHazards!: EntityTable<CachedHazardRecord, "id">;
 
   constructor() {
     super("shore-dive-offline-cache");
     this.version(1).stores({
-      // Indexed on id (primary key) plus the fields we filter/sort by today;
-      // add more indexes as real query patterns show up rather than
-      // speculatively indexing every field.
       cachedSites: "id, cachedAt",
       cachedHazards: "id, siteId, cachedAt",
     });
+    // v2 drops the never-used cachedHazards table: hazards travel inside each
+    // site's verified payload, so a site and its hazards are saved as one unit.
+    this.version(2).stores({ cachedHazards: null });
   }
 }
 

@@ -146,7 +146,7 @@ interface RawSiteMarkerRow {
 }
 
 /** The exact `sites` column list every map-pin query selects. One constant so
- * `listSitesWithHazardFlag` and `listSitesInBounds` can never drift apart and
+ * `listSitesWithHazardFlag` and `listSitesNear` can never drift apart and
  * hand `SiteMarker` a column the other one forgot.
  *
  * Kept deliberately narrow — this list is fetched for *every pin in the
@@ -280,7 +280,7 @@ function normalizeSite(row: RawSiteRow): Site {
 }
 
 /** `RawSiteMarkerRow` + the derived hazard flag → `SiteMarker`. One helper so
- * `listSitesWithHazardFlag` and `listSitesInBounds` build pins identically —
+ * `listSitesWithHazardFlag` and `listSitesNear` build pins identically —
  * the mapping counterpart of `SITE_MARKER_COLUMNS`, which already exists so
  * the two queries can't select different columns. Before this they held two
  * hand-maintained copies of the same object literal, i.e. exactly the drift
@@ -336,7 +336,7 @@ export interface ListSitesResult {
  * coordinates server-side to bound this by — a global-ish list is a real use
  * case, not an oversight. What changed is that it is now *bounded* and
  * *honest about it*: both reads carry an explicit `.limit()`, and hitting
- * either one sets `truncated`. Prefer `listSitesInBounds()` wherever real
+ * either one sets `truncated`. Prefer `listSitesNear()` wherever real
  * coordinates or a map viewport are available.
  */
 export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
@@ -351,7 +351,7 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
         .limit(DEFAULT_SITE_QUERY_LIMIT)
         .returns<RawSiteMarkerRow[]>(),
       // Kept as a parallel, unscoped read (not `.in("site_id", ids)` like
-      // `listSitesInBounds` does) so this stays one round trip rather than
+      // `listSitesNear` does) so this stays one round trip rather than
       // two — the site ids aren't known until the first query resolves. The
       // cost is that a truncated hazard read could leave a real hazard
       // report's site rendering *without* its flag, i.e. failing toward
@@ -412,119 +412,6 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
     logger.error("sites.list_failed", { error: errorMessage(error) });
     // `truncated: false` alongside a set `error`: the list is empty, not
     // partial, and the caller is already required to surface `error`.
-    return { sites: [], truncated: false, error: errorMessage(error) };
-  }
-}
-
-export interface ListSitesInBoundsParams {
-  /** Northern latitude edge (inclusive). */
-  north: number;
-  /** Southern latitude edge (inclusive). */
-  south: number;
-  /** Eastern longitude edge (inclusive). */
-  east: number;
-  /** Western longitude edge (inclusive). */
-  west: number;
-  /** Max rows to return. Clamped to `[1, MAX_SITE_QUERY_LIMIT]`; defaults to `DEFAULT_SITE_QUERY_LIMIT`. */
-  limit?: number;
-}
-
-/**
- * Sites inside a lat/lng bounding box, filtered **server-side** (T21.12) —
- * the bounded counterpart to `listSitesWithHazardFlag`. Use this anywhere
- * real coordinates or a map viewport exist; it exists so callers stop pulling
- * the whole table down and filtering by radius in JavaScript, which stops
- * working the moment the table outgrows PostgREST's silent row ceiling.
- *
- * The `hazard_reports` companion read is scoped with `.in("site_id", ...)` to
- * exactly the sites this call returned, so it is a second *bounded* read
- * rather than a second full-table one. That also makes `hasHazardReport`
- * strictly more trustworthy here than in `listSitesWithHazardFlag`: the
- * hazard rows can only be for sites already in hand.
- *
- * **Antimeridian (±180°) — handled, not documented-around.** A box that
- * crosses the antimeridian has `west > east` (e.g. west 170, east -170), and
- * cannot be expressed as `longitude >= west AND longitude <= east` — that
- * conjunction is unsatisfiable and would return zero rows, silently, for
- * every Pacific user. Detected explicitly and expressed as
- * `longitude >= west OR longitude <= east` via PostgREST's `or=(...)`, which
- * still ANDs against the latitude bounds. Latitude needs no equivalent case:
- * it doesn't wrap.
- */
-export async function listSitesInBounds(params: ListSitesInBoundsParams): Promise<ListSitesResult> {
-  const { north, south, east, west } = params;
-  const limit = clampLimit(params.limit);
-
-  // Validate before touching the network: a malformed box would otherwise
-  // become a query returning zero rows, which is indistinguishable from
-  // "genuinely no sites here" — the exact silent-wrong-answer class of bug
-  // this whole function exists to remove.
-  if (![north, south, east, west].every((value) => typeof value === "number" && Number.isFinite(value))) {
-    const message = "Invalid bounding box: north/south/east/west must all be finite numbers.";
-    logger.warn("sites.bounds_invalid", { north, south, east, west, reason: "non_finite" });
-    return { sites: [], truncated: false, error: message };
-  }
-
-  if (north < south) {
-    const message = `Invalid bounding box: north (${north}) is south of south (${south}).`;
-    logger.warn("sites.bounds_invalid", { north, south, reason: "inverted_latitude" });
-    return { sites: [], truncated: false, error: message };
-  }
-
-  try {
-    const supabase = await createClient();
-
-    const base = supabase.from("sites").select(SITE_MARKER_COLUMNS).gte("latitude", south).lte("latitude", north);
-
-    // west > east is the antimeridian-crossing case (see the doc comment).
-    const bounded = west > east
-      ? base.or(`longitude.gte.${west},longitude.lte.${east}`)
-      : base.gte("longitude", west).lte("longitude", east);
-
-    const sitesResult = await bounded
-      .order("name", { ascending: true })
-      .limit(limit)
-      .returns<RawSiteMarkerRow[]>();
-
-    if (sitesResult.error) throw sitesResult.error;
-
-    const siteRows = sitesResult.data ?? [];
-    const sitesTruncated = siteRows.length >= limit;
-
-    const { latestHazardBySiteId, truncated: hazardsTruncated } = await fetchLatestHazardBySite(
-      supabase,
-      siteRows.map((row) => row.id),
-    );
-
-    const truncated = sitesTruncated || hazardsTruncated;
-    if (truncated) {
-      logger.warn("sites.bounds_truncated", {
-        siteCount: siteRows.length,
-        siteLimit: limit,
-        hazardLimit: HAZARD_FLAG_QUERY_LIMIT,
-        sitesTruncated,
-        hazardsTruncated,
-        north,
-        south,
-        east,
-        west,
-      });
-    }
-
-    const sites: SiteMarker[] = siteRows.map((row) =>
-      normalizeMarker(row, latestHazardBySiteId.has(row.id), latestHazardBySiteId.get(row.id) ?? null),
-    );
-
-    return { sites, truncated, error: null };
-  } catch (error) {
-    logger.error("sites.bounds_failed", {
-      north,
-      south,
-      east,
-      west,
-      limit,
-      error: errorMessage(error),
-    });
     return { sites: [], truncated: false, error: errorMessage(error) };
   }
 }
@@ -600,7 +487,7 @@ export interface ListSitesNearParams {
  * Sites within `radiusMiles` of a point, ordered nearest-first and
  * radius-filtered server-side by the `search_sites_near` SQL function
  * (`0016_search_sites_near.sql`, plan.md item 24). The counterpart to
- * `listSitesInBounds` when a real centre + radius exist rather than a
+ * the old bounding-box read when a real centre + radius exist rather than a
  * viewport — the `search-nearby` route's old bounding-box + `ORDER BY name
  * LIMIT 200` path returned an alphabetical, not nearest, slice in dense
  * areas. Same `.in("site_id", ...)` hazard companion read and
