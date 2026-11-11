@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { errorMessage as describeError } from "@/lib/error-message";
+import { logger } from "@/lib/dive-plans/logger";
 
 /**
  * "Add this site to a new plan" (Task 11.5 / Resolved Decision 5's minimum-
@@ -57,10 +59,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
 
       setSubmitState("success");
     } catch (error) {
-      console.error("[AddToDivePlanForm] failed to create dive plan", {
-        siteId,
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error("add_form.create_failed", { siteId, error: describeError(error) });
       setSubmitState("error");
       setErrorMessage(error instanceof Error ? error.message : "Something went wrong — try again.");
     }

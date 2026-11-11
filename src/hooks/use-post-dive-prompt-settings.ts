@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from "react";
+import { logger } from "@/components/post-dive-prompt/logger";
 
 const STORAGE_KEY = "shore-dive:post-dive-prompt:auto-enabled:v1";
 
@@ -44,15 +45,7 @@ function readPersisted(): boolean {
     if (raw === null) return DEFAULT_ENABLED;
     return raw === "true";
   } catch (err) {
-    console.warn(
-      JSON.stringify({
-        ts: new Date().toISOString(),
-        level: "warn",
-        scope: "post-dive-prompt",
-        event: "settings.storage-read-failed",
-        error: String(err),
-      }),
-    );
+    logger.warn("settings.storage-read-failed", { error: String(err) });
     return DEFAULT_ENABLED;
   }
 }
@@ -84,15 +77,7 @@ function commit(next: boolean): void {
     } catch (err) {
       // Private browsing / storage-full: the toggle still works in-memory
       // for this session, it just won't survive a reload. Not fatal.
-      console.warn(
-        JSON.stringify({
-          ts: new Date().toISOString(),
-          level: "warn",
-          scope: "post-dive-prompt",
-          event: "settings.storage-write-failed",
-          error: String(err),
-        }),
-      );
+      logger.warn("settings.storage-write-failed", { error: String(err) });
     }
   }
   for (const listener of listeners) listener();
