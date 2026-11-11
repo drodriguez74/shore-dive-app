@@ -20,6 +20,7 @@ export type PrefetchFailureReason =
   | "offline"
   | "not-configured"
   | "not-found"
+  | "rate-limited"
   | "network"
   | "invalid-bundle"
   | "verification-failed"
@@ -98,6 +99,7 @@ export async function prefetchSite(siteId: string, deps: PrefetchDeps = {}): Pro
     });
     if (response.status === 503) return fail("not-configured");
     if (response.status === 404) return fail("not-found");
+    if (response.status === 429) return fail("rate-limited");
     if (!response.ok) return fail("network", { status: response.status });
     body = await response.json();
   } catch (error) {

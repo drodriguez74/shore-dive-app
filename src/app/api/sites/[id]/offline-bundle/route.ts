@@ -3,6 +3,10 @@ import { getSiteWithHazards } from "@/lib/sites/queries";
 import { buildSiteBundle } from "@/lib/offline/site-bundle";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/offline/logger";
+import { clientKey, createRateLimiter } from "@/lib/rate-limit";
+
+// Generous for a diver saving a trip's worth of sites; blunts scripted bursts.
+const limiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 
 /**
  * Signed offline bundle for one site (Task 12): the site row plus its hazard
@@ -16,6 +20,10 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
   } catch (error) {
     logger.error("bundle.params_read_failed", { error: errorMessage(error) });
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
+  }
+
+  if (!limiter.allow(clientKey(_request))) {
+    return NextResponse.json({ error: "Too many requests — try again in a minute.", code: "rate_limited" }, { status: 429 });
   }
 
   // Fail closed before touching the database: an unsigned bundle is never served.

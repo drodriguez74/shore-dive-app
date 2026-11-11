@@ -28,6 +28,7 @@ export const PREFETCH_FAILURE_MESSAGE: Record<PrefetchFailureReason, string> = {
   offline: "You're offline — connect to save this site. Nothing new was saved.",
   "not-configured": "Offline saving isn't set up on this server yet. Nothing was saved.",
   "not-found": "This site no longer exists, so there's nothing to save.",
+  "rate-limited": "Too many saves in a short time. Nothing new was saved — wait a minute and try again.",
   network: "Couldn't reach the server. Nothing new was saved — try again with a connection.",
   "invalid-bundle": "The server sent data we couldn't read. Nothing was saved.",
   "verification-failed": "The download failed its integrity check, so it was discarded. Try again.",

@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyManifest, type BundleManifest } from "@/lib/offline/bundle-signing";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/offline/logger";
+import { clientKey, createRateLimiter } from "@/lib/rate-limit";
 
 const MAX_MANIFEST_FILES = 50;
+const limiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 
 function isManifest(value: unknown): value is BundleManifest {
   if (typeof value !== "object" || value === null) return false;
@@ -25,6 +27,10 @@ function isManifest(value: unknown): value is BundleManifest {
  * other than a confirmed match answers `valid: false`.
  */
 export async function POST(request: NextRequest) {
+  if (!limiter.allow(clientKey(request))) {
+    return NextResponse.json({ valid: false, error: "Too many requests." }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
