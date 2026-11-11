@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseSessionCookie } from "@/lib/supabase/session-cookie";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/site-header/logger";
 import { SignOutButton } from "./sign-out-button";
@@ -32,11 +34,14 @@ export async function SiteHeader() {
   let userEmail: string | null = null;
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userEmail = user?.email ?? null;
+    // Anonymous visitors have no session cookie — skip the auth round-trip.
+    if (hasSupabaseSessionCookie((await cookies()).getAll())) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      userEmail = user?.email ?? null;
+    }
   } catch (error) {
     // Missing/misconfigured Supabase env vars, or a network failure — never
     // let the header crash the whole page over an auth check. Render as
