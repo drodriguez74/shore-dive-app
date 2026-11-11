@@ -24,8 +24,8 @@ import { AddToDivePlanForm } from "./add-to-dive-plan-form";
  * data load first, auth check only for the part of the page that actually
  * needs it), not a full route guard on the whole page.
  *
- * Also the real home for `PrefetchButton` (T12.6) — built and correct,
- * previously mounted by zero routes per TASKS.md's own downgrade note.
+ * Also the home of `PrefetchButton` (T12.6), which saves this site's signed
+ * offline bundle to IndexedDB (readable at `/offline`).
  * `PretripChecklist` (T12.7) is NOT mounted here (moved 2026-08-13, see
  * scope note below) — it lives on `/dive-plans` now, the real cross-site
  * "your whole plan" view this page's own prior comment named as its
@@ -263,10 +263,11 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
       <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">Offline access</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Best-effort — the service worker only updates its cache when you have the app open. Prefetch before
-          you lose signal at the water&apos;s edge.
+          Save this site&apos;s details and hazard reports to this device before you lose signal at the
+          water&apos;s edge. A saved copy doesn&apos;t update on its own — refresh it whenever you&apos;re back
+          online.
         </p>
-        <PrefetchButton siteId={site.id} siteName={site.name} />
+        <PrefetchButton siteId={site.id} />
       </section>
 
       <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
