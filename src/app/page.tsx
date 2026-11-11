@@ -72,6 +72,9 @@ export default async function Home() {
                 My dive plans →
               </Link>
             )}
+            <Link href="/offline" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
+              Saved for offline →
+            </Link>
           </div>
         </div>
         {/* TASKS.md T26 (2026-08-13 UX audit): previously a single
@@ -96,17 +99,23 @@ export default async function Home() {
             flow (creative/flows/map-exploration.md's scrollable-card list) —
             that's a separate, still-open gap (out of scope for this batch,
             noted for the founder). */}
-        <DiveSiteExplorer sites={sites} ldsMarkers={ldsMarkers} isSignedIn={signedIn} />
+        <DiveSiteExplorer
+          sites={sites}
+          ldsMarkers={ldsMarkers}
+          isSignedIn={signedIn}
+          sitesLoadFailed={Boolean(sitesError)}
+        />
+        {/* Raw error text stays in the server log (queries.ts logs it), not in diver-facing copy. */}
         {sitesError && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            Couldn&apos;t load dive sites from Supabase ({sitesError}). Map/list will be empty until this is
-            resolved.
+          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+            Couldn&apos;t reach the dive-site database, so the map and list are empty for now. That&apos;s a
+            problem on our side, not a sign there are no sites near you — try again shortly.
           </p>
         )}
         {ldsError && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            Couldn&apos;t load LDS/fill-station status from Supabase ({ldsError}). Those pins will be empty until
-            this is resolved.
+          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+            Couldn&apos;t load fill-station status either — those pins will be missing until the database is
+            reachable again.
           </p>
         )}
       </main>

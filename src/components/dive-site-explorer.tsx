@@ -119,6 +119,9 @@ export interface MapEmptyStateParams {
   difficultyFilter: DifficultyFilter;
   shoreAccessFilter: ShoreAccessFilter;
   searchedExternally: boolean;
+  /** True when the site data couldn't be loaded (database unreachable) — an
+   * empty map then means "unknown", and must never read as "none here". */
+  loadFailed?: boolean;
   /** True when `hasCoords` is satisfied by a manually-picked map location
    * (2026-08-11's "Fetch dive sites here" feature) rather than the diver's
    * own geolocation — swaps "your location" for "this location" in the
@@ -156,6 +159,9 @@ export interface MapEmptyStateParams {
  * function doesn't claim to explain — "All" has no larger radius to suggest
  * expanding to).
  */
+export const MAP_LOAD_FAILED_MESSAGE =
+  "Couldn't load dive sites right now — the site database is unreachable. This doesn't mean there are none here; try again shortly.";
+
 export function computeMapEmptyStateMessage(params: MapEmptyStateParams): string | null {
   const {
     resultCount,
@@ -166,9 +172,12 @@ export function computeMapEmptyStateMessage(params: MapEmptyStateParams): string
     shoreAccessFilter,
     searchedExternally,
     isManualLocation = false,
+    loadFailed = false,
   } = params;
 
-  if (resultCount > 0 || !hasCoords || !Number.isFinite(radiusMiles)) return null;
+  if (resultCount > 0) return null;
+  if (loadFailed) return MAP_LOAD_FAILED_MESSAGE;
+  if (!hasCoords || !Number.isFinite(radiusMiles)) return null;
 
   const noFilterActive = siteTypeFilter === "all" && difficultyFilter === "all" && shoreAccessFilter === "all";
   const canExpand = radiusMiles < MAX_RADIUS_MILES;
@@ -349,6 +358,8 @@ export interface DiveSiteExplorerProps {
    * "nothing verified yet" state, rather than to fabricated shop pins if a
    * future caller forgets to pass it. */
   ldsMarkers?: LdsStatusRow[];
+  /** True when the page's own server-side `sites` read failed. */
+  sitesLoadFailed?: boolean;
   /** Resolved server-side by `src/app/page.tsx`. Used only to explain the
    * `T21.13` auth gate in the empty state — being signed in is what unlocks
    * the OpenStreetMap search, and without saying so an anonymous diver in a
@@ -394,7 +405,12 @@ export interface DiveSiteExplorerProps {
  * duplication that already existed pre-T21.6 between `SiteMap` and
  * `NearbyDiveSitesList`, just relocated, not introduced by this change).
  */
-export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }: DiveSiteExplorerProps) {
+export function DiveSiteExplorer({
+  sites,
+  ldsMarkers = [],
+  isSignedIn = false,
+  sitesLoadFailed = false,
+}: DiveSiteExplorerProps) {
   const { status, coords } = useGeolocation();
   // Radius + site-type filter persist across navigation (reported 2026-08-09:
   // browsing to a site detail page and back silently reset both). Same
@@ -669,6 +685,7 @@ export function DiveSiteExplorer({ sites, ldsMarkers = [], isSignedIn = false }:
     shoreAccessFilter,
     searchedExternally,
     isManualLocation: manualCenter !== null,
+    loadFailed: sitesLoadFailed || (searchMatchesCurrentRadius && search.status === "error"),
   });
 
   // The web-search discovery fallback is available at any *manually-picked*
