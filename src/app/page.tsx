@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
+import { hasSupabaseSessionCookie } from "@/lib/supabase/session-cookie";
 import { DiveSiteExplorer } from "@/components/dive-site-explorer";
 import { WelcomeGate } from "@/components/onboarding/welcome-gate";
 import { SafeReturnHomeCard } from "@/components/safe-return-home-card";
@@ -28,6 +31,7 @@ export const dynamic = "force-dynamic";
  */
 async function isSignedIn(): Promise<boolean> {
   try {
+    if (!hasSupabaseSessionCookie((await cookies()).getAll())) return false;
     const supabase = await createServerClient();
     const {
       data: { user },
@@ -40,11 +44,7 @@ async function isSignedIn(): Promise<boolean> {
 }
 
 export default async function Home() {
-  const [{ sites, error: sitesError }, { markers: ldsMarkers, error: ldsError }, signedIn] = await Promise.all([
-    listSitesWithHazardFlag(),
-    listLdsStatusMarkers(),
-    isSignedIn(),
-  ]);
+  const signedIn = await isSignedIn();
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 font-sans dark:bg-depth-0">
@@ -82,43 +82,57 @@ export default async function Home() {
             safety-relevant feature in the app deserved more than that. See
             safe-return-home-card.tsx's own header for the full reasoning. */}
         <SafeReturnHomeCard />
-        {/* T21.6 (plan.md Resolved Decision #8): the map and the "Dive sites
-            near you" list below used to be independent siblings here, each
-            managing its own state — changing the list's radius selector
-            never moved the map's pins. DiveSiteExplorer now owns geolocation
-            + radius + the search-nearby result set once and feeds both the
-            migrated GeoJSON/symbol-layer map (T21.7) and the (now purely
-            presentational) list from the same data. This page stays a
-            Server Component doing the initial full-list fetch above,
-            unchanged — DiveSiteExplorer is the client boundary.
-            Task 11.5's map-pin fix is still the primary way to reach a site,
-            but the list works with or without a Mapbox token configured (the
-            map component itself degrades to a bare placeholder sentence with
-            no token — see site-map.tsx) and needs zero pin-tapping to use.
-            This is deliberately NOT the full designed Mapbox-degraded-fallback
-            flow (creative/flows/map-exploration.md's scrollable-card list) —
-            that's a separate, still-open gap (out of scope for this batch,
-            noted for the founder). */}
-        <DiveSiteExplorer
-          sites={sites}
-          ldsMarkers={ldsMarkers}
-          isSignedIn={signedIn}
-          sitesLoadFailed={Boolean(sitesError)}
-        />
-        {/* Raw error text stays in the server log (queries.ts logs it), not in diver-facing copy. */}
-        {sitesError && (
-          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-            Couldn&apos;t reach the dive-site database, so the map and list are empty for now. That&apos;s a
-            problem on our side, not a sign there are no sites near you — try again shortly.
-          </p>
-        )}
-        {ldsError && (
-          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-            Couldn&apos;t load fill-station status either — those pins will be missing until the database is
-            reachable again.
-          </p>
-        )}
+        {/* The catalogue read is the slow part of this page, so it streams in
+            behind the header, links and Safe-Return card instead of blocking them. */}
+        <Suspense fallback={<ExplorerSkeleton />}>
+          <ExplorerSection signedIn={signedIn} />
+        </Suspense>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Server-fetches the full site list (the explorer's fallback before a
+ * location resolves, for the "All" radius, and if nearby search fails) and
+ * fill-station markers, then hands both to the client explorer.
+ */
+async function ExplorerSection({ signedIn }: { signedIn: boolean }) {
+  const [{ sites, error: sitesError }, { markers: ldsMarkers, error: ldsError }] = await Promise.all([
+    listSitesWithHazardFlag(),
+    listLdsStatusMarkers(),
+  ]);
+
+  return (
+    <>
+      <DiveSiteExplorer
+        sites={sites}
+        ldsMarkers={ldsMarkers}
+        isSignedIn={signedIn}
+        sitesLoadFailed={Boolean(sitesError)}
+      />
+      {/* Raw error text stays in the server log (queries.ts logs it), not in diver-facing copy. */}
+      {sitesError && (
+        <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+          Couldn&apos;t reach the dive-site database, so the map and list are empty for now. That&apos;s a
+          problem on our side, not a sign there are no sites near you — try again shortly.
+        </p>
+      )}
+      {ldsError && (
+        <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+          Couldn&apos;t load fill-station status either — those pins will be missing until the database is
+          reachable again.
+        </p>
+      )}
+    </>
+  );
+}
+
+function ExplorerSkeleton() {
+  return (
+    <div role="status" aria-live="polite" className="flex flex-col gap-3">
+      <div className="h-[420px] w-full animate-pulse rounded-2xl bg-zinc-200 dark:bg-depth-2" />
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">Loading dive sites…</p>
     </div>
   );
 }
