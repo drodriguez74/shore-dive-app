@@ -1,36 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shore Dive
 
-## Getting Started
+A free, installable web app (Next.js PWA) for discovering and safely diving shore-accessible dive sites: a map of sites with provenance and hazard reports, dive plans, offline saving, a local Safe-Return timer, and post-dive logging.
 
-First, run the development server:
+Live: https://shore-dive-app.vercel.app
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local   # then fill in the values it describes
+npm install
+npm run dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Checks: `npm run lint`, `npm test`, `npx tsc --noEmit`, `npm run build`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Database migrations live in `supabase/migrations/` and are applied by hand — see `supabase/README.md`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Where things are documented
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `HANDOFF.md` — current state and what to work on next (read first)
+- `TASKS.md` — granular progress tracker
+- `plan.md` — product spec and the decisions behind it
+- `THREAT_MODEL.md` — safety and abuse analysis; read before touching the features it covers
+- `CLAUDE.md` / `AGENTS.md` — guidance for AI coding agents

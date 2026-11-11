@@ -6,6 +6,33 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-11-11 — holistic review: offline prefetch made real, maintenance, Supabase outage
+
+**State of the repo**
+- Branch **`feature/offline-bundles-and-maintenance`** (off local `main`), committed, **not pushed, not merged**.
+- Local `main` is still 5 ahead / 1 behind `origin/main` (origin has PR #8's merge commit for item 25; local has its own merge of the same branch). `git pull --no-rebase` then push resolves it — pushing deploys to production, so it's left for the founder.
+- `tsc` / lint / **1078 tests** / build all clean.
+
+**What happened**
+- **Supabase project had auto-paused** (free tier, ~1 week idle). Every read failed with `TypeError: fetch failed`, locally and on the deployed app. Founder resumed it from the dashboard this session. Now documented in `CLAUDE.md`.
+- **Offline prefetch is real** (`TASKS.md T32`) — was a placeholder. Signed bundle route, verify route, verified save to IndexedDB, auto-save on add-to-dive-plan, `/offline` saved-sites page that doubles as the service worker's no-network fallback.
+- **Outage honesty fix** — the map banner said "No dive sites within 25 mi" while the database was unreachable; it now says the data couldn't be loaded.
+- **Maintenance** (`T33`) — Next 16.4.6 (critical advisory), shared structured logger, README/CLAUDE.md brought up to date.
+
+**Founder actions**
+1. **Set `BUNDLE_SIGNING_SECRET`** (`openssl rand -hex 32`) in `.env.local` and in Vercel (Production + Preview). Until then "Prefetch Now" honestly reports that offline saving isn't set up.
+2. Review + merge this branch; sync and push `main`.
+3. Supabase will pause again after a week idle — a free keep-alive (e.g. a scheduled ping) is worth deciding on.
+4. Still open from before: `plan.md` item 26 (shore-access copy outside S. FL), `NEXT_PUBLIC_LDS_CLAIM_EMAIL`, Vercel Preview env vars, `T15.8` iOS device test (now also worth testing `/offline` there), the Blocked bucket in `plan.md`.
+5. Housekeeping: `ATT - Bill And Payment History.pdf` is sitting untracked in the repo root; six merged feature branches can be deleted.
+
+**Next engineering candidates**
+- Post-dive / voice logs are still device-only (no `dive_logs` table) — needs a migration, so a founder-applied step.
+- Offline bundles carry data only — no images or map tiles; no automatic pre-dive refresh.
+- Remaining `npm audit` findings are build-time tooling behind `@serwist/next`; they clear when Serwist updates.
+
+---
+
 ## 2026-09-06 — items 24 & 25 merged to `main`
 
 **Accomplishments**
