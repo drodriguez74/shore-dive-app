@@ -6,28 +6,52 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
-## 2026-09-06 — discovery-flow items 24 & 25 (two branches, unmerged)
+## 2026-11-11 — holistic review: offline prefetch made real, maintenance, Supabase outage
 
-Two feature branches off `main` (`ddb65f1`), each with its own PR to open:
+**State of the repo**
+- Branch **`feature/offline-bundles-and-maintenance`** (off local `main`), committed, **not pushed, not merged**.
+- Local `main` is still 5 ahead / 1 behind `origin/main` (origin has PR #8's merge commit for item 25; local has its own merge of the same branch). `git pull --no-rebase` then push resolves it — pushing deploys to production, so it's left for the founder.
+- `tsc` / lint / **1078 tests** / build all clean.
 
-**`feature/task-24-nearest-sites-search`** — `search-nearby` truncated at 200
-sites *and* the 200 kept were an alphabetical slice (`ORDER BY name`), not the
-nearest. New migration `0016_search_sites_near.sql` (SQL function, radius +
-distance in SQL, haversine matching `distance.ts`) + `queries.ts` `listSitesNear()`
-replacing the bounding-box path. **Migration not applied — manual + merge
-blocker.** Also: CLAUDE.md comment-brevity + concise-response rules. +10 tests.
+**What happened**
+- **Supabase project had auto-paused** (free tier, ~1 week idle). Every read failed with `TypeError: fetch failed`, locally and on the deployed app. Founder resumed it from the dashboard this session. Now documented in `CLAUDE.md`.
+- **Offline prefetch is real** (`TASKS.md T32`) — was a placeholder. Signed bundle route, verify route, verified save to IndexedDB, auto-save on add-to-dive-plan, `/offline` saved-sites page that doubles as the service worker's no-network fallback.
+- **Outage honesty fix** — the map banner said "No dive sites within 25 mi" while the database was unreachable; it now says the data couldn't be loaded.
+- **Maintenance** (`T33`) — Next 16.4.6 (critical advisory), shared structured logger, README/CLAUDE.md brought up to date.
 
-**`feature/task-25-no-coords-affordance`** — a discovery candidate with no
-coordinates was a dead greyed button. Now: a "Look up on Google Maps" link + a
-reveal-on-demand lat/long entry that adds the site once the diver supplies real
-coordinates. `site-discovery-candidates.tsx` + new test (+5). No migration.
+**Founder actions**
+1. **Set `BUNDLE_SIGNING_SECRET`** (`openssl rand -hex 32`) in `.env.local` and in Vercel (Production + Preview). Until then "Prefetch Now" honestly reports that offline saving isn't set up.
+2. Review + merge this branch; sync and push `main`.
+3. Supabase will pause again after a week idle — a free keep-alive (e.g. a scheduled ping) is worth deciding on.
+4. Still open from before: `plan.md` item 26 (shore-access copy outside S. FL), `NEXT_PUBLIC_LDS_CLAIM_EMAIL`, Vercel Preview env vars, `T15.8` iOS device test (now also worth testing `/offline` there), the Blocked bucket in `plan.md`.
+5. Housekeeping: `ATT - Bill And Payment History.pdf` is sitting untracked in the repo root; six merged feature branches can be deleted.
 
-Both: `tsc`/lint/build clean. The two branches don't touch the same files (24 =
-queries/route/explorer map-note; 25 = candidates component only) so merge order
-doesn't matter.
+**Next engineering candidates**
+- Post-dive / voice logs are still device-only (no `dive_logs` table) — needs a migration, so a founder-applied step.
+- Offline bundles carry data only — no images or map tiles; no automatic pre-dive refresh.
+- Remaining `npm audit` findings are build-time tooling behind `@serwist/next`; they clear when Serwist updates.
 
-**Last open discovery item:** `plan.md` 26 — shore-access copy on the preview
-sheet outside S. FL. Founder judgement call, not code.
+---
+
+## 2026-09-06 — items 24 & 25 merged to `main`
+
+**Accomplishments**
+- **Item 24** merged (`42fa015`): `search_sites_near` SQL fn (migration `0016`, applied live) + `listSitesNear()` replace the alphabetical `LIMIT 200` slice; nearest-N within radius, done server-side. +10 tests.
+- **Item 25** merged (`45b1c54`): no-coords candidates get a Google Maps link + reveal-on-demand manual lat/long entry (validated client + add-route). +5 tests.
+- Merge doc-conflicts (HANDOFF/TASKS/plan) resolved. `tsc`/lint/**1047 passing**/build all clean. Local `main` is **5 ahead of `origin/main` — not pushed yet.**
+
+**Decisions**
+- Migration `0016` applied to the live Supabase project by founder before merge.
+- Branches merged locally (no `gh` on this machine); push to `main` pending founder OK.
+
+**Session-memory**
+- Nothing new for `/memory` — `0016` mechanics + merge state captured here and in TASKS/plan.
+
+**Next**
+1. Push `main` to origin (5 commits: 2 merges + this handoff).
+2. `plan.md` item **26** — shore-access copy on the preview sheet outside S. FL. Founder judgement, not code.
+3. `NEXT_PUBLIC_LDS_CLAIM_EMAIL` → real inbox.
+4. Optional dead-code sweep: `listSitesInBounds` / `boundingBoxForRadius` / `sortByDistanceWithinRadius` now unused by app code (kept — tested).
 
 ---
 

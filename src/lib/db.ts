@@ -7,11 +7,11 @@ import Dexie, { type EntityTable } from "dexie";
  * (src/app/sw.ts) handles the separate, static-asset half of the same
  * best-effort prefetch story (map tiles, imagery).
  *
- * NOTE (T12.4): the real Postgres schema (P0-B) is being designed in
- * parallel and isn't final yet. These record shapes are deliberately loose —
- * a stable `id`/`cachedAt` envelope around a flexible `data` blob — so this
- * cache layer doesn't have to be rewritten every time the server schema
- * shifts. Tighten `data` once the Postgres schema lands.
+ * `cachedSites.data` holds a site's whole verified bundle payload (site +
+ * hazard reports, see `src/lib/offline/site-bundle-payload.ts`), written
+ * only by `prefetch-site.ts` after integrity verification. `cachedHazards`
+ * is currently unused — hazards travel inside that payload so a site and
+ * its hazards are always saved and verified as one unit.
  *
  * `cachedAt` is the field the whole freshness/staleness story depends on
  * (THREAT_MODEL.md §2: cached data must never look "as fresh" as it isn't —

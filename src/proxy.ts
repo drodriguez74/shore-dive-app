@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { errorMessage } from "@/lib/error-message";
+import { logger } from "@/lib/supabase/logger";
 
 /**
  * Session-refresh proxy (P0-A.5).
@@ -56,9 +58,7 @@ export async function proxy(request: NextRequest) {
   } catch (error) {
     // Network/Supabase failures here must not take down every page request
     // (offline-first app — see CLAUDE.md's exception-handling standard).
-    console.error("[proxy] session refresh failed", {
-      error: error instanceof Error ? error.message : error,
-    });
+    logger.error("proxy.session_refresh_failed", { error: errorMessage(error) });
   }
 
   return response;

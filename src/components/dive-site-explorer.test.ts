@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeMapEmptyStateMessage,
+  MAP_LOAD_FAILED_MESSAGE,
   nextAiSearchStateFromResponse,
   nextSearchStateFromResponse,
   siteShoreAccessCategory,
@@ -293,5 +294,33 @@ describe("nextAiSearchStateFromResponse", () => {
   it("defaults candidates to an empty array when the response omits the field", () => {
     const state = nextAiSearchStateFromResponse({ error: null }, true, 200);
     expect(state.candidates).toEqual([]);
+  });
+});
+
+describe("computeMapEmptyStateMessage — load failure", () => {
+  const base = {
+    resultCount: 0,
+    hasCoords: true,
+    radiusMiles: 25,
+    siteTypeFilter: "all",
+    difficultyFilter: "all",
+    shoreAccessFilter: "all",
+    searchedExternally: false,
+  } as const;
+
+  it("never presents an unreachable database as 'no dive sites here'", () => {
+    const message = computeMapEmptyStateMessage({ ...base, loadFailed: true });
+    expect(message).toBe(MAP_LOAD_FAILED_MESSAGE);
+    expect(message).not.toMatch(/No dive sites/);
+  });
+
+  it("says so even before a location resolves", () => {
+    expect(computeMapEmptyStateMessage({ ...base, hasCoords: false, loadFailed: true })).toBe(
+      MAP_LOAD_FAILED_MESSAGE,
+    );
+  });
+
+  it("stays quiet when fallback results are on the map", () => {
+    expect(computeMapEmptyStateMessage({ ...base, resultCount: 3, loadFailed: true })).toBeNull();
   });
 });

@@ -66,6 +66,11 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [...siteAssetCaching, ...defaultCache],
+  // With no network, any page navigation falls back to the precached
+  // saved-sites view, which renders from IndexedDB (Task 12/13).
+  fallbacks: {
+    entries: [{ url: "/offline", matcher: ({ request }) => request.destination === "document" }],
+  },
 });
 
 serwist.addEventListeners();

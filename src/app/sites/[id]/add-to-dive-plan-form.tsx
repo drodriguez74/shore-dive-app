@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { errorMessage as describeError } from "@/lib/error-message";
+import { logger } from "@/lib/dive-plans/logger";
+import { prefetchSite, type PrefetchFailureReason } from "@/lib/offline/prefetch-site";
+import { PREFETCH_FAILURE_MESSAGE } from "@/components/prefetch-button";
 
 /**
  * "Add this site to a new plan" (Task 11.5 / Resolved Decision 5's minimum-
@@ -27,6 +31,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
   const [divingWith, setDivingWith] = useState("");
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [offlineSave, setOfflineSave] = useState<"saving" | "saved" | PrefetchFailureReason | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,11 +61,13 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
       }
 
       setSubmitState("success");
+      // Intent-driven prefetch (Task 12): planning a dive here is the signal
+      // to save the site. Best-effort — the outcome is shown, never assumed.
+      setOfflineSave("saving");
+      const result = await prefetchSite(siteId);
+      setOfflineSave(result.ok ? "saved" : result.reason);
     } catch (error) {
-      console.error("[AddToDivePlanForm] failed to create dive plan", {
-        siteId,
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error("add_form.create_failed", { siteId, error: describeError(error) });
       setSubmitState("error");
       setErrorMessage(error instanceof Error ? error.message : "Something went wrong — try again.");
     }
@@ -68,12 +75,29 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
 
   if (submitState === "success") {
     return (
-      <p className="text-sm text-emerald-700 dark:text-emerald-400">
-        Added {siteName} to your dive plan for {plannedDate}.{" "}
-        <Link href="/dive-plans" className="font-medium underline underline-offset-2 hover:no-underline">
-          View your dive plans →
-        </Link>
-      </p>
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm text-emerald-700 dark:text-emerald-400">
+          Added {siteName} to your dive plan for {plannedDate}.{" "}
+          <Link href="/dive-plans" className="font-medium underline underline-offset-2 hover:no-underline">
+            View your dive plans →
+          </Link>
+        </p>
+        {offlineSave === "saving" && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Saving this site for offline use…</p>
+        )}
+        {offlineSave === "saved" && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Also saved to this device for offline use, as of now. Refresh it from &quot;Offline access&quot;
+            above on the day of your dive — a saved copy doesn&apos;t update on its own.
+          </p>
+        )}
+        {offlineSave !== null && offlineSave !== "saving" && offlineSave !== "saved" && (
+          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+            Your plan was created, but this site was not saved for offline use:{" "}
+            {PREFETCH_FAILURE_MESSAGE[offlineSave]}
+          </p>
+        )}
+      </div>
     );
   }
 

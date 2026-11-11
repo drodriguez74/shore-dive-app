@@ -1,4 +1,5 @@
 import { createClient } from "./server";
+import { logger } from "./logger";
 
 /**
  * Ensures a `profiles` row exists for a newly (or returning) authenticated
@@ -21,10 +22,8 @@ export async function ensureProfile(userId: string): Promise<void> {
     .upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true });
 
   if (error) {
-    // Expected until the `profiles` table migration lands (P0-A.6/P0-B) —
-    // log with context for when structured logging is wired up, but don't
-    // throw: a missing/misconfigured profiles table must never block sign-in.
-    console.error("[ensureProfile] failed to upsert profile", {
+    // Logged, not thrown: a profiles-table failure must never block sign-in.
+    logger.error("profile.upsert_failed", {
       userId,
       message: error.message,
       code: error.code,

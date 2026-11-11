@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfile } from "@/lib/supabase/profile";
+import { errorMessage } from "@/lib/error-message";
+import { logger } from "@/lib/supabase/logger";
 
 /**
  * OAuth callback for Supabase's Google sign-in redirect flow (P0-A.4).
@@ -37,21 +39,16 @@ export async function GET(request: NextRequest) {
       try {
         await ensureProfile(data.user.id);
       } catch (profileError) {
-        console.error("[auth/callback] ensureProfile threw unexpectedly", {
+        logger.error("callback.ensure_profile_threw", {
           userId: data.user.id,
-          error:
-            profileError instanceof Error
-              ? profileError.message
-              : profileError,
+          error: errorMessage(profileError),
         });
       }
     }
 
     return NextResponse.redirect(`${origin}${next}`);
   } catch (err) {
-    console.error("[auth/callback] session exchange failed", {
-      error: err instanceof Error ? err.message : err,
-    });
+    logger.error("callback.session_exchange_failed", { error: errorMessage(err) });
     return NextResponse.redirect(
       `${origin}/login?error=${encodeURIComponent("Sign-in failed. Please try again.")}`,
     );

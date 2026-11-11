@@ -1,4 +1,6 @@
+import { errorMessage } from "@/lib/error-message";
 import type { BundleManifest } from "./bundle-signing";
+import { logger } from "./logger";
 
 /**
  * Client-safe bundle verification (Task 12 / T12.8). Companion to
@@ -91,10 +93,7 @@ export async function verifyFileChecksums(
         mismatches.push(entry.path);
       }
     } catch (error) {
-      console.error("[bundle-verification] checksum hashing failed", {
-        path: entry.path,
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error("verification.checksum_hashing_failed", { path: entry.path, error: errorMessage(error) });
       mismatches.push(entry.path);
     }
   }
@@ -128,9 +127,9 @@ async function fetchSignatureVerifier(manifest: BundleManifest, signature: strin
     const body: unknown = await response.json();
     return typeof body === "object" && body !== null && (body as { valid?: unknown }).valid === true;
   } catch (error) {
-    console.error("[bundle-verification] signature verification request failed", {
+    logger.error("verification.signature_request_failed", {
       siteId: manifest.siteId,
-      error: error instanceof Error ? error.message : error,
+      error: errorMessage(error),
     });
     return false;
   }
@@ -164,10 +163,7 @@ export async function verifyBundleIntegrity(
   try {
     signatureOk = await verifySignature(manifest, signature);
   } catch (error) {
-    console.error("[bundle-verification] signature verifier threw", {
-      siteId: manifest.siteId,
-      error: error instanceof Error ? error.message : error,
-    });
+    logger.error("verification.signature_verifier_threw", { siteId: manifest.siteId, error: errorMessage(error) });
     signatureOk = false;
   }
 

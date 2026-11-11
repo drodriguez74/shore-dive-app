@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { errorMessage } from "@/lib/error-message";
+import { logger } from "@/lib/lds/logger";
 import { LDS_STATUS_LABEL, LDS_STATUS_VALUES, type LdsStatusRow, type LdsStatusValue } from "./lds-status";
 
 /**
@@ -150,10 +152,7 @@ export function LdsSubmissionForm({
       // default (CLAUDE.md), and a diver at a trailhead with one bar is the
       // expected case, not the edge case — so say plainly that nothing was
       // saved rather than leaving it ambiguous.
-      console.error("[LdsSubmissionForm] submit failed", {
-        shopName,
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error("submission_form.submit_failed", { shopName, error: errorMessage(error) });
       setSubmitState("idle");
       setErrorText("Couldn't reach the server, so your report wasn't saved. Check your connection and retry.");
     }

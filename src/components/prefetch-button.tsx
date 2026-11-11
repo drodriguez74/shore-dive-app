@@ -1,149 +1,101 @@
 "use client";
 
-import { useState } from "react";
-import { db } from "@/lib/db";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { FreshnessBadge } from "@/components/freshness-badge";
 import {
-  computeSha256Hex,
-  verifyBundleIntegrity,
-  type SignatureVerifier,
-} from "@/lib/offline/bundle-verification";
-import type { BundleManifest } from "@/lib/offline/bundle-signing";
+  getCachedSite,
+  OFFLINE_CACHE_CHANGED_EVENT,
+  prefetchSite,
+  type PrefetchFailureReason,
+} from "@/lib/offline/prefetch-site";
 
 /**
- * Manual "Prefetch Now" trigger (T12.6). Resolved Decision 3 in plan.md:
- * background/periodic sync is opportunistic at best on the web, so a
- * manual trigger is the *reliable* path, not a fallback for a broken one —
- * this button is a first-class part of the offline story, not a nice-to-have.
+ * Manual "Prefetch Now" trigger (T12.6). Background sync is opportunistic at
+ * best on the web (plan.md Resolved Decision 3), so this button is the
+ * reliable path. It reports freshness ("saved as of"), never a bare
+ * "cached" flag, and nothing is saved unless the bundle verified.
  */
 
 export interface PrefetchButtonProps {
-  siteId?: string;
-  siteName?: string;
+  siteId: string;
   className?: string;
 }
 
-type Status = "idle" | "loading" | "success" | "error";
+type Status = "idle" | "loading" | "error";
 
-export function PrefetchButton({
-  siteId = "mock-site-1",
-  siteName = "La Jolla Cove",
-  className = "",
-}: PrefetchButtonProps) {
+export const PREFETCH_FAILURE_MESSAGE: Record<PrefetchFailureReason, string> = {
+  offline: "You're offline — connect to save this site. Nothing new was saved.",
+  "not-configured": "Offline saving isn't set up on this server yet. Nothing was saved.",
+  "not-found": "This site no longer exists, so there's nothing to save.",
+  network: "Couldn't reach the server. Nothing new was saved — try again with a connection.",
+  "invalid-bundle": "The server sent data we couldn't read. Nothing was saved.",
+  "verification-failed": "The download failed its integrity check, so it was discarded. Try again.",
+  storage: "Couldn't save to this device — storage may be full or blocked (e.g. private browsing).",
+};
+
+export function PrefetchButton({ siteId, className = "" }: PrefetchButtonProps) {
   const [status, setStatus] = useState<Status>("idle");
+  const [failure, setFailure] = useState<PrefetchFailureReason | null>(null);
+  const [cachedAt, setCachedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const read = () => {
+      void getCachedSite(siteId).then((cached) => {
+        if (!cancelled) setCachedAt(cached?.cachedAt ?? null);
+      });
+    };
+    read();
+    // Another component (e.g. add-to-dive-plan) may save or remove this site.
+    window.addEventListener(OFFLINE_CACHE_CHANGED_EVENT, read);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(OFFLINE_CACHE_CHANGED_EVENT, read);
+    };
+  }, [siteId]);
 
   async function handlePrefetch() {
     setStatus("loading");
-    try {
-      // TODO(Task 12 backend, T12.1): there is no real bundle to fetch yet —
-      // no live Supabase Storage bucket exists (founder action, not yet
-      // done). Once it does, replace the mock manifest/file/verifier below
-      // with:
-      //   1. fetch the signed bundle manifest for `siteId` from Supabase
-      //      Storage (a `SignedManifest` from bundle-signing.ts's shape);
-      //   2. fetch the actual bundle files it references;
-      //   3. call `verifyBundleIntegrity(manifest, signature, files)` with
-      //      NO injected `verifySignature` override — let it use the real
-      //      default (which calls `/api/verify-bundle`, itself still
-      //      T12.1-dependent future wiring).
-      // What's real *today*, ready to keep as-is once the above lands: the
-      // verify-before-trust shape itself — `verifyBundleIntegrity` is
-      // called and its result gated on before anything is written to
-      // `db.cachedSites`, and a failed check surfaces an error state
-      // instead of a cached record (THREAT_MODEL.md §2 — fail closed, never
-      // silently trust a bundle that didn't check out).
-      const mockFileContent = new TextEncoder().encode(
-        JSON.stringify({ mock: true, siteId, note: "Placeholder bundle payload — no real bundle backend yet (T12.1)." }),
-      ).buffer;
-      const mockManifest: BundleManifest = {
-        siteId,
-        generatedAt: new Date().toISOString(),
-        files: [{ path: `${siteId}/site-data.json`, sha256: await computeSha256Hex(mockFileContent) }],
-      };
-      // There's no real signed manifest to check yet, so the default
-      // (fetch-based, real) signature verifier would always fail closed
-      // here — correctly, but that would make this demo button permanently
-      // show "error" until T12.1/an /api/verify-bundle route exist. This
-      // injected mock verifier stands in for that server round-trip so the
-      // interaction shape (verify -> gate -> write) is exercised end-to-end;
-      // swap it out (drop the 4th argument) once a real endpoint exists.
-      const mockSignatureVerifier: SignatureVerifier = async () => true;
-
-      const verification = await verifyBundleIntegrity(
-        mockManifest,
-        "mock-signature-not-a-real-hmac",
-        [{ path: mockManifest.files[0].path, content: mockFileContent }],
-        mockSignatureVerifier,
-      );
-
-      if (!verification.ok) {
-        console.error("[PrefetchButton] bundle verification failed — failing closed, not caching", {
-          siteId,
-          reason: verification.reason,
-          mismatches: verification.mismatches,
-        });
-        setStatus("error");
-        return;
-      }
-
-      await db.cachedSites.put({
-        id: siteId,
-        name: siteName,
-        provenance: "VERIFIED",
-        data: { mock: true, note: "Placeholder bundle — no real offline bundle backend yet (T12.1)." },
-        cachedAt: new Date(),
-      });
-      // "success" here means "the verify → gate → write interaction shape
-      // ran correctly," not "this site is actually usable offline" — see
-      // the render below, which says so explicitly. Found in the
-      // 2026-08-13 UX audit: the success label used to read "Cached for
-      // offline use," identical to what a real cache would say, on an app
-      // whose own core pillar promises this works with zero cellular
-      // coverage. A diver trusting that literally at the water's edge,
-      // with no real bundle behind it, is exactly the failure mode
-      // CLAUDE.md's "never let a UI imply a guarantee the system can't
-      // back" rule exists to prevent.
-      setStatus("success");
-    } catch (error) {
-      // No structured logger wired up yet in this codebase — following the
-      // console.error(tag, context) convention used elsewhere
-      // (src/lib/supabase/profile.ts) until one lands.
-      console.error("[PrefetchButton] failed to write cached record", {
-        siteId,
-        error: error instanceof Error ? error.message : error,
-      });
+    setFailure(null);
+    const result = await prefetchSite(siteId);
+    if (result.ok) {
+      setCachedAt(result.cachedAt);
+      setStatus("idle");
+    } else {
+      setFailure(result.reason);
       setStatus("error");
     }
   }
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={handlePrefetch}
           disabled={status === "loading"}
           className="rounded-md bg-sky-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {status === "loading" ? "Prefetching…" : "Prefetch Now"}
+          {status === "loading" ? "Saving…" : cachedAt ? "Refresh offline copy" : "Prefetch Now"}
         </button>
-        {status === "success" && (
-          <span className="text-sm text-amber-700 dark:text-amber-400">
-            Demo only — no real site data was cached.
-          </span>
-        )}
-        {status === "error" && (
-          <span className="text-sm text-red-700 dark:text-red-400">Couldn&apos;t cache this site — try again.</span>
-        )}
+        {cachedAt && <FreshnessBadge cachedAt={cachedAt} />}
       </div>
-      {/* Honest disclosure shown before the click too, not just after —
-          the real offline-bundle backend (Task 12) doesn't exist yet, so
-          this button currently only exercises the verify-then-write
-          interaction shape against a placeholder payload. Don't rely on
-          this for an actual dive with no signal. */}
-      <p className="text-xs text-zinc-400 dark:text-zinc-500">
-        Real offline bundles aren&apos;t built yet — this currently caches a placeholder, not this site&apos;s
-        real data.
-      </p>
+      {failure && (
+        <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+          {PREFETCH_FAILURE_MESSAGE[failure]}
+          {cachedAt && " Your earlier saved copy is still on this device."}
+        </p>
+      )}
+      {cachedAt && (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Site details and hazard reports are saved on this device as of the time shown — anything reported
+          later isn&apos;t included, and map tiles aren&apos;t guaranteed offline.{" "}
+          <Link href="/offline" className="font-medium underline underline-offset-2 hover:no-underline">
+            View saved sites
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
