@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { isModerator } from "@/lib/supabase/moderators";
 import { runDiscovery } from "@/lib/webcam-discovery/run-discovery";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/webcam-discovery/logger";
@@ -65,6 +66,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Sign-in required to run webcam candidate discovery." }, { status: 401 });
+    }
+    if (!isModerator(user)) {
+      return NextResponse.json({ error: "Only moderators can run webcam candidate discovery." }, { status: 403 });
     }
   } catch (error) {
     // Includes Supabase not being configured yet (no real project exists
