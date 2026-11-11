@@ -114,6 +114,11 @@ for syntax, but treat it as unverified until it's actually applied once and
   change; `SECURITY INVOKER`, granted to `anon`/`authenticated`. **Not applied**
   — the `search-nearby` route calls this RPC and fails to an empty list + error
   until it exists.
+- `migrations/0017_dive_logs.sql` — `dive_logs`, the opt-in private backup of
+  a diver's own logbook entries (owner-only RLS on every operation, 1,000-row
+  per-account cap, deleted with the account). **Not applied** — until it is,
+  the backup panel on `/post-dive` reports "isn't set up on this server yet"
+  and logs stay device-only.
 
 ## How to apply
 
@@ -581,6 +586,12 @@ Short and forward-looking, matching how little PII v1 actually collects
   feature that doesn't exist. Revisit this section when dive-plan location
   tracking or emergency contacts (`THREAT_MODEL.md` §11) are actually
   scoped.
+- **Dive-log backup (opt-in, `0017`):** only for a signed-in diver who turns
+  backup on. Stores their logbook entries — depth, runtime, conditions,
+  marine life, free-text notes, and a buddy's name if they typed one. The raw
+  voice transcript is never uploaded. Readable only by the owner; removed
+  when the account is deleted (`on delete cascade`). There is no in-app
+  "delete my backup" control yet — add one before real users rely on this.
 - **Account deletion:** deleting a user's `auth.users` row cascades to their
   `profiles` row (`on delete cascade`). `sites` / `hazard_reports` /
   `lds_status` rows they authored use `on delete set null` on the

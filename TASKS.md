@@ -84,6 +84,8 @@ Update checkboxes as work lands. Don't let this drift from reality — if a task
   - **Founder action:** set `BUNDLE_SIGNING_SECRET` in `.env.local` and Vercel, or Prefetch reports "isn't set up on this server yet".
 - [x] `T33` **Maintenance, 2026-11-11.** Next.js 16.3.0 → 16.4.6 (critical advisory GHSA-p293-qw3h-jr36) + `npm audit fix`; ten identical per-feature loggers collapsed onto `src/lib/logger.ts` and the remaining ad-hoc `console.error` boundary calls moved onto it; map banner/homepage no longer present a database outage as "no dive sites here" (found while the Supabase project was auto-paused).
 
+- [~] `T34` **Review recommendations, 2026-11-11** — status and remaining items are in `HANDOFF.md`'s 2026-11-11 (later) section. Done: moderator allowlist (`MODERATOR_EMAILS`), CI + keep-alive workflows, `/api/health`, security headers, error-text sanitising, rate limit on the offline endpoints, auth round-trip skip for anonymous visitors, homepage streaming, Safe-Return UI tests, opt-in dive-log backup (`0017_dive_logs.sql`, **not yet applied live**), saved-site auto-refresh, dead-code removal, webcam workers on `claude-haiku-5-5`. Open: comment trim, `dive-site-explorer.tsx` split, privacy-policy draft.
+
 ### Task 13: Offline Sync Status UI (→ Task 13, → §2)
 - [x] `T13.1` "Cached as of [time]" freshness indicator component — `src/components/freshness-badge.tsx`, live-updating (re-renders every 60s so fresh→stale is visible without a reload)
 - [x] `T13.2` Staleness threshold logic (e.g. flag past 12h) — configurable prop on `FreshnessBadge`, defaults to 12h; missing/invalid `cachedAt` fails toward "stale," not "fresh"
