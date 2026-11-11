@@ -61,7 +61,7 @@ export default async function FillStationsPage() {
 
         {error && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Couldn&apos;t load fill-station status ({error}). Try reloading.
+            Couldn&apos;t load fill-station status — the database is unreachable right now. Try reloading shortly.
           </p>
         )}
 

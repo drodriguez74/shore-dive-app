@@ -104,7 +104,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     return (
       <PageShell>
         <NoticeCard title="Couldn't load this site">
-          <p>{error}</p>
+          <p>The site database is unreachable right now. Try reloading shortly.</p>
         </NoticeCard>
       </PageShell>
     );
