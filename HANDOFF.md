@@ -6,6 +6,41 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-11-11 (later) — working through the review's 15 recommendations (IN PROGRESS)
+
+Session stopped early (usage limit). Branch `feature/offline-bundles-and-maintenance`, all pushed.
+`tsc` / lint / **1079 tests** clean at the last commit.
+
+**Done and committed (one commit each)**
+- #1 Moderator allowlist (`MODERATOR_EMAILS`, fail closed) on `/moderation/camera-sources`, its review route, and both webcam-discovery entry points.
+- #2 CI workflow (`.github/workflows/ci.yml`) — lint, typecheck, tests, no-secrets build.
+- #3 Keep-alive (`.github/workflows/keep-alive.yml` → `GET /api/health`, daily).
+- #4 Safe-Return UI tests (hold-to-confirm + start/running/expired screens).
+- #5 Security headers in `next.config.ts` (partial CSP — no `script-src` yet).
+- #6 Raw backend errors no longer returned/rendered; `errorMessage()` clips long messages.
+- #7 In-memory rate limit on `offline-bundle` and `verify-bundle`.
+- #8 (partial) Proxy, header and homepage skip the auth round-trip for visitors with no session cookie. Layout is still `force-dynamic`.
+- #9 (partial) Homepage streams the map section behind a fast shell (Suspense). The 500-site read itself is unchanged — it is the explorer's fallback list.
+- #10 Opt-in dive-log account backup + restore (`0017_dive_logs.sql`, `src/lib/dive-logs/backup.ts`, panel on `/post-dive`). Migration validated on a scratch Postgres, **not applied to the live project**.
+- #13 Dead code removed (`listSitesInBounds`, bounding-box/sort helpers, `cachedHazards`).
+- #14 Webcam workers on `claude-haiku-5-5` (still disabled).
+- Extra: saved offline sites auto-refresh when the app is opened online (stale > 6h).
+
+**Not started**
+- #11 Trim over-long comments in `dive-site-explorer.tsx`, `queries.ts`, `sites/[id]/page.tsx` (leave `shore-access.ts` per-entry citations — they are data provenance).
+- #12 Split `dive-site-explorer.tsx` (nearby-search + web-discovery logic into hooks).
+- #15 Slim `TASKS.md` (move finished detail to an archive file).
+- Privacy-policy draft for founder review.
+- Doc sync for this batch: `CLAUDE.md` (moderators, rate limit, backup, CI), `TASKS.md`, `supabase/README.md` (0017 + retention/PII note for dive logs), `.env.local.example` (`MODERATOR_EMAILS`).
+- Not verified in a real browser yet: the dive-log backup panel, homepage streaming, auto-refresh.
+
+**Founder actions added by this batch**
+1. Set `MODERATOR_EMAILS` (your Google email) in `.env.local` and Vercel — until then nobody, including you, can open the moderation queue.
+2. Apply `supabase/migrations/0017_dive_logs.sql` in the SQL editor to make dive-log backup available.
+3. After merge, check the "Keep Supabase awake" workflow ran (Actions tab).
+
+---
+
 ## 2026-11-11 — holistic review: offline prefetch made real, maintenance, Supabase outage
 
 **State of the repo**
