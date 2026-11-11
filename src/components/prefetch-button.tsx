@@ -91,7 +91,8 @@ export function PrefetchButton({ siteId, className = "" }: PrefetchButtonProps) 
       {cachedAt && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Site details and hazard reports are saved on this device as of the time shown — anything reported
-          later isn&apos;t included, and map tiles aren&apos;t guaranteed offline.{" "}
+          later isn&apos;t included, and map tiles aren&apos;t guaranteed offline. Stale copies refresh when you
+          open the app with a connection, never in the background.{" "}
           <Link href="/offline" className="font-medium underline underline-offset-2 hover:no-underline">
             View saved sites
           </Link>

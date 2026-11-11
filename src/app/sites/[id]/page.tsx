@@ -264,8 +264,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">Offline access</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Save this site&apos;s details and hazard reports to this device before you lose signal at the
-          water&apos;s edge. A saved copy doesn&apos;t update on its own — refresh it whenever you&apos;re back
-          online.
+          water&apos;s edge. A saved copy only refreshes while the app is open with a connection, so refresh it
+          before you head out.
         </p>
         <PrefetchButton siteId={site.id} />
       </section>

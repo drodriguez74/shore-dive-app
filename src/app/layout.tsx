@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { OfflineAutoRefresh } from "@/components/offline/offline-auto-refresh";
 import { SiteHeader } from "@/components/site-header/site-header";
 import "./globals.css";
 
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader />
+        <OfflineAutoRefresh />
         {children}
       </body>
     </html>

@@ -198,3 +198,50 @@ export async function removeCachedSite(siteId: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Saved copies older than this are refreshed when the app is opened online. */
+export const AUTO_REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;
+const AUTO_REFRESH_MAX_SITES = 10;
+
+export interface RefreshStaleDeps {
+  list?: () => Promise<ListCachedSitesResult>;
+  prefetch?: (siteId: string) => Promise<PrefetchResult>;
+  now?: () => Date;
+  isOnline?: () => boolean;
+}
+
+/**
+ * Best-effort refresh of stale saved sites, stalest first, a bounded number
+ * per run. This is the web's stand-in for background sync: it only runs
+ * while the app is open with a connection, so the UI never promises it.
+ * A failed refresh leaves the older verified copy in place.
+ */
+export async function refreshStaleSavedSites(deps: RefreshStaleDeps = {}): Promise<{ refreshed: number; failed: number }> {
+  const list = deps.list ?? listCachedSites;
+  const prefetch = deps.prefetch ?? ((siteId: string) => prefetchSite(siteId));
+  const now = (deps.now ?? (() => new Date()))().getTime();
+  const isOnline = deps.isOnline ?? browserIsOnline;
+
+  if (!isOnline()) return { refreshed: 0, failed: 0 };
+
+  const { sites } = await list();
+  const stale = sites
+    .filter((site) => now - site.cachedAt.getTime() > AUTO_REFRESH_AFTER_MS)
+    .sort((a, b) => a.cachedAt.getTime() - b.cachedAt.getTime())
+    .slice(0, AUTO_REFRESH_MAX_SITES);
+
+  let refreshed = 0;
+  let failed = 0;
+  for (const site of stale) {
+    const result = await prefetch(site.payload.site.id);
+    if (result.ok) {
+      refreshed += 1;
+      continue;
+    }
+    failed += 1;
+    // No point hammering a server that's down, unconfigured, or throttling us.
+    if (["offline", "network", "not-configured", "rate-limited"].includes(result.reason)) break;
+  }
+  if (stale.length > 0) logger.info("auto_refresh.done", { stale: stale.length, refreshed, failed });
+  return { refreshed, failed };
+}

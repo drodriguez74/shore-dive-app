@@ -48,7 +48,7 @@ export function PretripChecklist({ plan = [], className = "" }: PretripChecklist
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-black dark:text-zinc-50">Before you lose signal</h3>
           <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-            Saved copies don&apos;t update on their own. Tap &quot;Prefetch Now&quot; (or &quot;Refresh offline
+            Saved copies never update in the background. Tap &quot;Prefetch Now&quot; (or &quot;Refresh offline
             copy&quot;) for each site in your dive plan while you still have a connection — ideally the day of
             the dive, so hazard reports are as current as possible.
           </p>

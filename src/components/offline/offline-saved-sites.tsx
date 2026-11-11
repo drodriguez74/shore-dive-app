@@ -63,9 +63,9 @@ export function OfflineSavedSites() {
             : "You're offline. These are the sites saved on this device — the rest of the app needs a connection."}
         </p>
         <p className="mt-2 rounded-lg border border-amber-600/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:border-amber-400/30 dark:text-amber-200">
-          Saved copies don&apos;t update on their own. Hazard reports are only as current as each site&apos;s
-          &quot;cached&quot; time below — conditions may have changed since. Refresh from the site&apos;s page
-          whenever you have signal.
+          Saved copies only refresh while this app is open with a connection — never in the background. Hazard
+          reports are only as current as each site&apos;s &quot;cached&quot; time below; conditions may have
+          changed since.
         </p>
       </div>
 

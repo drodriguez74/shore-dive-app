@@ -88,7 +88,7 @@ export function AddToDivePlanForm({ siteId, siteName }: AddToDivePlanFormProps) 
         {offlineSave === "saved" && (
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Also saved to this device for offline use, as of now. Refresh it from &quot;Offline access&quot;
-            above on the day of your dive — a saved copy doesn&apos;t update on its own.
+            above on the day of your dive — a saved copy never updates in the background.
           </p>
         )}
         {offlineSave !== null && offlineSave !== "saving" && offlineSave !== "saved" && (
