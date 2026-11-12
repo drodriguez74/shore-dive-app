@@ -90,7 +90,7 @@ export default async function DivePlansPage() {
     <PageShell>
       {loadError && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
-          Couldn&apos;t load your dive plans ({loadError}). Try reloading.
+          Couldn&apos;t load your dive plans — the database is unreachable right now. Try reloading shortly.
         </p>
       )}
 

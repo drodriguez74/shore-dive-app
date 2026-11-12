@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CachedSiteRecord } from "@/lib/db";
 import { verifyManifest } from "./bundle-signing";
-import { prefetchSite, type PrefetchDeps } from "./prefetch-site";
+import { prefetchSite, refreshStaleSavedSites, type CachedSite, type PrefetchDeps } from "./prefetch-site";
 import { buildSiteBundle } from "./site-bundle";
 import type { SiteBundleResponse } from "./site-bundle-payload";
 import { FIXTURE_HAZARDS, FIXTURE_SITE } from "./test-fixtures";
@@ -134,5 +134,64 @@ describe("prefetchSite", () => {
     });
 
     expect(await prefetchSite("site-123", deps)).toEqual({ ok: false, reason: "storage" });
+  });
+});
+
+describe("refreshStaleSavedSites", () => {
+  const HOUR = 60 * 60 * 1000;
+  const saved = (id: string, ageHours: number): CachedSite => ({
+    payload: { schemaVersion: 1, site: { ...FIXTURE_SITE, id }, hazards: [], hazardsTruncated: false },
+    cachedAt: new Date(NOW.getTime() - ageHours * HOUR),
+  });
+  const listOf = (sites: CachedSite[]) => async () => ({ sites, error: null });
+
+  beforeEach(() => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("refreshes only stale copies, stalest first", async () => {
+    const prefetch = vi.fn(async (siteId: string) => ({ ok: true as const, cachedAt: NOW, hazardCount: siteId.length * 0 }));
+
+    const result = await refreshStaleSavedSites({
+      list: listOf([saved("fresh", 1), saved("old", 30), saved("older", 80)]),
+      prefetch,
+      now: () => NOW,
+      isOnline: () => true,
+    });
+
+    expect(result).toEqual({ refreshed: 2, failed: 0 });
+    expect(prefetch.mock.calls.map(([id]) => id)).toEqual(["older", "old"]);
+  });
+
+  it("does nothing offline", async () => {
+    const prefetch = vi.fn();
+    const result = await refreshStaleSavedSites({
+      list: listOf([saved("old", 30)]),
+      prefetch,
+      now: () => NOW,
+      isOnline: () => false,
+    });
+    expect(result).toEqual({ refreshed: 0, failed: 0 });
+    expect(prefetch).not.toHaveBeenCalled();
+  });
+
+  it("stops after the first server-side failure instead of retrying every site", async () => {
+    const prefetch = vi.fn(async () => ({ ok: false as const, reason: "network" as const }));
+    const result = await refreshStaleSavedSites({
+      list: listOf([saved("a", 30), saved("b", 40), saved("c", 50)]),
+      prefetch,
+      now: () => NOW,
+      isOnline: () => true,
+    });
+    expect(result).toEqual({ refreshed: 0, failed: 1 });
+    expect(prefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("caps how many sites one run refreshes", async () => {
+    const prefetch = vi.fn(async (siteId: string) => ({ ok: true as const, cachedAt: NOW, hazardCount: siteId.length * 0 }));
+    const many = Array.from({ length: 25 }, (_, index) => saved(`site-${index}`, 30 + index));
+    await refreshStaleSavedSites({ list: listOf(many), prefetch, now: () => NOW, isOnline: () => true });
+    expect(prefetch).toHaveBeenCalledTimes(10);
   });
 });

@@ -2,18 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isModerator } from "@/lib/supabase/moderators";
 import type { CameraSource } from "@/lib/camera-sources/types";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/camera-sources/logger";
 import { ModerationQueueClient } from "./queue-client";
 
-// Cheap, immediate mitigation for the gap `SecurityGapNotice` below already
-// discloses: this route gates on "signed in," not "is a moderator" (no
-// moderator role exists yet — see that component's comment and
-// plan.md's Resolved Decision #4). noindex/nofollow keeps it out of search
-// results while that real fix (a moderator-role column + route gate) is
-// pending — it does not gate access; anyone with the URL can still reach
-// this page once signed in. Not a substitute for real authorization.
+// Moderators only (MODERATOR_EMAILS allowlist); noindex keeps the route out of search results.
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
@@ -69,12 +64,14 @@ export default async function CameraSourcesModerationPage() {
   }
 
   let userId: string | null = null;
+  let userIsModerator = false;
   try {
     const supabase = await createServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     userId = user?.id ?? null;
+    userIsModerator = isModerator(user);
   } catch (error) {
     logger.error("moderation_page.auth_check_failed", {
       error: errorMessage(error),
@@ -93,8 +90,7 @@ export default async function CameraSourcesModerationPage() {
       <PageShell>
         <NoticeCard title="Sign-in required">
           <p>
-            You must be signed in to view the moderation queue. Note this only checks that you&apos;re signed
-            in — see the security-gap notice below for what that does and doesn&apos;t mean.
+            You must be signed in with a moderator account to view the moderation queue.
           </p>
           <Link
             href="/login"
@@ -102,6 +98,16 @@ export default async function CameraSourcesModerationPage() {
           >
             Sign in
           </Link>
+        </NoticeCard>
+      </PageShell>
+    );
+  }
+
+  if (!userIsModerator) {
+    return (
+      <PageShell>
+        <NoticeCard title="Moderators only">
+          <p>Your account isn&apos;t on the moderator list, so the review queue isn&apos;t available.</p>
         </NoticeCard>
       </PageShell>
     );
@@ -151,7 +157,6 @@ export default async function CameraSourcesModerationPage() {
 
   return (
     <PageShell>
-      <SecurityGapNotice />
       {loadError ? (
         <NoticeCard title="Could not load the queue">
           <p>{loadError}</p>
@@ -209,15 +214,3 @@ function NoticeCard({ title, children }: { title: string; children: React.ReactN
 // promoting community content to `VERIFIED`, not something this page can
 // fix on its own — see this file's header comment and
 // `src/app/api/camera-sources/[id]/review/route.ts` for the full writeup.
-function SecurityGapNotice() {
-  return (
-    <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-900 dark:border-amber-400/30 dark:text-amber-200">
-      <p className="font-semibold">Heads up: anyone signed in can approve or reject candidates here.</p>
-      <p className="mt-1">
-        There&apos;s no moderator role yet — this queue currently checks only that you&apos;re signed in, not
-        that you&apos;re a trusted reviewer. Review candidates carefully; this will get tightened before any
-        public launch.
-      </p>
-    </div>
-  );
-}

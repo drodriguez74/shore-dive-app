@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/supabase/logger";
+import { hasSupabaseSessionCookie } from "@/lib/supabase/session-cookie";
 
 /**
  * Session-refresh proxy (P0-A.5).
@@ -28,6 +29,12 @@ export async function proxy(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.next();
+  }
+
+  // No Supabase session cookie means nothing to refresh — anonymous
+  // visitors (most traffic) skip the auth round-trip entirely.
+  if (!hasSupabaseSessionCookie(request.cookies.getAll())) {
     return NextResponse.next();
   }
 

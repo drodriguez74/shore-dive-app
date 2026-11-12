@@ -34,14 +34,15 @@
  *     founder's decision to make, informed by this comment, not an
  *     incidental side effect of merging this code.
  *
- * Model choice itself: `claude-haiku-4-5-20251001` is the cheapest
- * vision-capable Claude model as of when this file was written ($1/$5 per
- * MTok input/output, vision-capable, 200K context — well below every
- * Sonnet/Opus-tier price point). Anthropic's model lineup and pricing change
- * over time — **reconfirm this against current model IDs (the `claude-api`
- * skill, or https://platform.claude.com/docs/en/about-claude/models/overview)
- * before enabling this against a real ANTHROPIC_API_KEY**, don't assume this
- * constant is still the cheapest option by the time anyone flips the
- * feature flag on.
+ * Model choice: Claude Haiku 5.5 — the cheapest vision-capable Claude model
+ * as of 2026-11 ($0.10 / $0.50 per MTok for prompts up to 100K tokens).
+ * Reconfirm against the `claude-api` skill before enabling real spend.
+ *
+ * Haiku 5.5 thinks by default and thinking counts toward `max_tokens`, so
+ * callers pair this model with `WEBCAM_WORKER_MAX_TOKENS` and low effort —
+ * a cap sized only for the JSON answer can be used up before any text.
  */
-export const WEBCAM_EXTRACTION_MODEL_ID = "claude-haiku-4-5-20251001";
+export const WEBCAM_EXTRACTION_MODEL_ID = "claude-haiku-5-5";
+
+/** Room for brief thinking plus a small structured-JSON answer. */
+export const WEBCAM_WORKER_MAX_TOKENS = 2048;

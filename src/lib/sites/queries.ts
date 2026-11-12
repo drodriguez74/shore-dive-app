@@ -15,70 +15,32 @@ import type {
 } from "./types";
 
 /**
- * Real `sites`/`hazard_reports` reads (Task 11.5) — the first application
- * code anywhere that actually queries these tables; `src/app/page.tsx`
- * previously rendered only mock/LDS data. Both tables are public-read (see
- * `supabase/migrations/0002_rls.sql`), so these never require a signed-in
- * session — the anon-key server client is enough.
- *
- * Every exported function wraps its Supabase calls in try/catch and returns
- * an explicit `error` field rather than throwing, per CLAUDE.md's engineering
- * standard ("wrap every I/O boundary... network failures are an expected
- * code path"). Callers (Server Components) render a real error/empty state
- * instead of crashing the page — same shape
- * `src/app/moderation/camera-sources/page.tsx`'s `loadError` already uses.
+ * Server-side reads of `sites`, `hazard_reports` and `lds_status`. All three
+ * are public-read, so the anon-key server client is enough. Every exported
+ * function catches its own errors and returns an explicit `error` field —
+ * callers render an error state instead of crashing the page.
  */
 
-// PostgREST can serialize Postgres `numeric` columns as JSON strings (to
-// avoid float precision loss) rather than JSON numbers — the exact
-// behavior depends on the project's PostgREST version/config, so this
-// codebase doesn't assume either way. Every site row that ever reaches a
-// caller has already been routed through this so latitude/longitude are
-// always a real `number` by the time `Site`/`SiteMarker` types are used —
-// callers (react-map-gl's <Marker>, in particular) need real numbers, not
-// numeric strings.
+// PostgREST may return `numeric` columns as JSON strings; coerce so callers
+// (map markers in particular) always get real numbers.
 function toNumber(value: number | string): number {
   return typeof value === "string" ? Number(value) : value;
 }
 
 /**
- * The nullable counterpart of `toNumber`, for the `numeric` columns added by
- * `0012_sites_dive_metadata.sql` (`depth_min_ft`, `depth_max_ft`,
- * `shore_distance_yards`). Same PostgREST numeric-as-string problem as
- * latitude/longitude, plus a null that means something.
- *
- * **`null` is preserved, and anything unparseable becomes `null` too** —
- * that direction is deliberate on a safety-adjacent field. `null` is the
- * "depth not recorded" state `classifyDiveSuitability()` is written to
- * report honestly; a `NaN` leaking through instead would sail past every
- * comparison in that function (`NaN > 130` is `false`) and produce a
- * confident-sounding "within recreational limits" summary full of `NaN` for
- * a site whose depth is in fact unknown. Degrading to "not recorded" is the
- * only honest failure here.
+ * Nullable `toNumber`. Anything unparseable becomes `null` ("not recorded"),
+ * never `NaN`: `NaN > 130` is false, so a NaN depth would read as "within
+ * recreational limits" for a site whose depth is actually unknown.
  */
 function toNullableNumber(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined) return null;
-  // An empty/whitespace-only string is treated as absent, not as a number.
-  // `Number("")` is `0`, so without this an empty depth field would arrive as
-  // a literal "0 ft" claim — the single worst wrong answer this helper could
-  // produce, since 0 reads as a real, extremely shallow depth rather than as
-  // missing data. Caught by a test, not by review.
+  // `Number("")` is 0 — an empty field must not become a real "0 ft" depth.
   if (typeof value === "string" && value.trim() === "") return null;
   const parsed = toNumber(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/**
- * Narrows `research_sources`'s untyped `unknown` (see `RawSiteRow`) into
- * `ResearchSource[] | null`. Defensive in the same direction as
- * `toNullableNumber`: anything that isn't a well-formed array of
- * `{title, url}` objects becomes `null` (never a partially-broken array
- * that would render a citation with a missing link), since this codebase's
- * own writer (Task 22's research-summary script) is the only intended
- * source of this column and a malformed value means something upstream
- * already went wrong — degrading to "no sources shown" is safer than
- * rendering whatever shape actually arrived.
- */
+/** Narrows untyped `research_sources` jsonb; a malformed value degrades to "no sources", never a citation with a missing link. */
 function toResearchSources(value: unknown): ResearchSource[] | null {
   if (!Array.isArray(value)) return null;
   const sources: ResearchSource[] = [];
@@ -104,26 +66,16 @@ interface RawSiteRow {
   provenance: SiteProvenance;
   legal_access_status: LegalAccessStatus;
   site_type: SiteType;
-  // `numeric` columns, so `string` is a real possibility off the wire (see
-  // `toNullableNumber`); `undefined` covers a row read before
-  // `0012_sites_dive_metadata.sql` has been applied to the project, which is
-  // the current state of every environment — see supabase/README.md Open
-  // item #15.
+  // Optional: `undefined` covers a row read from a project where the migration
+  // adding the column (0012/0013/0014) hasn't been applied.
   depth_min_ft?: number | string | null;
   depth_max_ft?: number | string | null;
   shore_access?: ShoreAccessConfidence | null;
-  // `undefined` covers a row read before `0014_shore_access_method.sql` has
-  // been applied, same reasoning as the 0012/0013 columns in this interface.
   shore_access_method?: ShoreAccessMethod | null;
   shore_entry_id?: string | null;
   shore_distance_yards?: number | string | null;
-  // `undefined` covers a row read before `0013_sites_research_summary.sql`
-  // has been applied, same as the 0012 columns above.
   research_summary?: string | null;
-  // PostgREST returns `jsonb` already parsed as JSON, not a string — but
-  // this is still untyped over the wire, so it's `unknown` here and
-  // narrowed by `toResearchSources` below rather than trusted as
-  // `ResearchSource[]` straight off the response.
+  // Untyped over the wire — narrowed by `toResearchSources`.
   research_sources?: unknown;
   research_summary_updated_at?: string | null;
   created_by: string | null;
@@ -145,44 +97,19 @@ interface RawSiteMarkerRow {
   shore_access_method?: ShoreAccessMethod | null;
 }
 
-/** The exact `sites` column list every map-pin query selects. One constant so
- * `listSitesWithHazardFlag` and `listSitesInBounds` can never drift apart and
- * hand `SiteMarker` a column the other one forgot.
- *
- * Kept deliberately narrow — this list is fetched for *every pin in the
- * viewport*, so a column earns a place here only if the map itself needs it
- * to place, colour or filter a pin. `depth_min_ft`/`depth_max_ft` and
- * `shore_access` (`0012_sites_dive_metadata.sql`) qualify: certification-level
- * and shore-access filtering are map-level operations, and doing either
- * without the value per pin would mean fetching detail rows just to decide
- * what to draw. `shore_access_method` (`0014_shore_access_method.sql`)
- * qualifies too, for the same reason `shore_access` itself does — a future
- * "curated entries only" map filter needs it per-pin. `shore_entry_id`/
- * `shore_distance_yards` do not — they are the one-line explanation for a
- * single opened site, and live in `SITE_DETAIL_COLUMNS` only. */
+/**
+ * The `sites` columns every map-pin query selects — one constant so the pin
+ * queries can't drift apart. Kept narrow: it is fetched for every pin in
+ * view, so a column belongs here only if the map needs it to place, colour
+ * or filter a pin. Detail-only fields live in `SITE_DETAIL_COLUMNS`.
+ */
 const SITE_MARKER_COLUMNS =
   "id, name, latitude, longitude, provenance, legal_access_status, site_type, depth_min_ft, depth_max_ft, shore_access, shore_access_method";
 
 /**
- * The full `sites` column list for the site-detail read (T21.16) — every
- * field of `RawSiteRow`/`Site` in `./types.ts`, and nothing else.
- *
- * **This replaced a `select("*")`, and that mattered more than it looks.**
- * `listSitesWithHazardFlag()` failed loudly and immediately when `sites`
- * gained `site_type` before the code knew about it, because it names its
- * columns; `getSiteWithHazards()` silently survived the exact same
- * schema/code mismatch, because `*` returns whatever columns happen to exist
- * and TypeScript's `RawSiteRow` cast is erased at runtime. A read that can't
- * tell "the schema changed" from "everything is fine" is a bad property for
- * the query backing a page divers read hazard information off, so both reads
- * in that function now name their columns.
- *
- * Deliberately excludes `external_source`/`external_id`
- * (`0008_sites_external_source.sql`) — real columns, but import-provenance
- * bookkeeping that isn't on the `Site` type and isn't rendered anywhere. Keep
- * this list and `Site`/`RawSiteRow` in lockstep: adding a field to one
- * without the other is exactly the drift the explicit list exists to make
- * visible.
+ * Every field of `Site`, named explicitly rather than `select("*")` so a
+ * schema/code mismatch fails loudly instead of silently returning whatever
+ * columns exist. Keep in lockstep with `Site`/`RawSiteRow`.
  */
 const SITE_DETAIL_COLUMNS =
   "id, name, description, latitude, longitude, provenance, legal_access_status, site_type, " +
@@ -190,31 +117,14 @@ const SITE_DETAIL_COLUMNS =
   "research_summary, research_sources, research_summary_updated_at, " +
   "created_by, created_at, updated_at";
 
-/** The full `hazard_reports` column list — every field of `HazardReport` in
- * `./types.ts`, and nothing else. Same reasoning as `SITE_DETAIL_COLUMNS`;
- * note the other two hazard reads in this file select only `site_id`,
- * because they only derive a boolean flag. This one renders real rows. */
+/** Every field of `HazardReport`, named explicitly for the same reason as `SITE_DETAIL_COLUMNS`. */
 const HAZARD_REPORT_COLUMNS = "id, site_id, provenance, description, reported_by, created_at, updated_at";
 
 /**
- * Row-count ceilings (T21.12). **These exist for correctness, not just
- * performance.** PostgREST enforces its own server-side maximum row count
- * (Supabase's default is 1000) and applies it *silently* — a query that
- * exceeds it returns a truncated array with no error and no signal. Before
- * this, both queries below selected entire tables with no `.limit()`, so the
- * moment `sites` outgrew that ceiling (Task 21's OSM import pipeline is
- * designed to grow it continuously) dive sites would have started vanishing
- * from the map with nothing indicating data had been dropped. In an app that
- * surfaces hazard information, silently dropping rows is a safety problem,
- * not a performance nit.
- *
- * The fix is two-part, and the second part matters as much as the first:
- * ask for an explicit, known number of rows, *and* report back when the
- * result hit that number, so a caller can never present a truncated list as
- * if it were complete (`ListSitesResult.truncated`).
- *
- * Values are deliberately at or under PostgREST's own 1000-row default —
- * a limit above it would be a lie, silently re-imposed by the server.
+ * Row-count ceilings. PostgREST silently truncates at its own maximum
+ * (Supabase default 1000), so every read asks for an explicit number of rows
+ * and reports when the result hit it (`truncated`) — on a hazard surface,
+ * silently dropped rows are a safety problem. Values stay at or under 1000.
  */
 /** Default page size for a bounded (map-viewport) site query. */
 export const DEFAULT_SITE_QUERY_LIMIT = 500;
@@ -224,35 +134,13 @@ export const MAX_SITE_QUERY_LIMIT = 1000;
 export const HAZARD_FLAG_QUERY_LIMIT = 1000;
 
 /**
- * Ceiling on the single-site hazard-report read backing the site detail page
- * (T21.16). A deliberately *smaller* sibling of `HAZARD_FLAG_QUERY_LIMIT`
- * rather than a reuse of it, for two reasons specific to this read:
- *
- * 1. **It selects whole rows, not just `site_id`.** The flag reads pull one
- *    uuid per row; this one pulls prose (`description`) for every report, all
- *    of it serialized into a Server Component payload. 1000 full hazard rows
- *    is a meaningfully large response where 1000 uuids is not.
- * 2. **Its scope is one site.** 200 hazard reports filed against a single
- *    dive site is already far past anything plausible, so this bounds the
- *    pathological/abusive case without realistically truncating an honest
- *    one — whereas `HAZARD_FLAG_QUERY_LIMIT` has to cover *every* site's
- *    reports at once and needs the headroom.
- *
- * Still comfortably under PostgREST's own 1000-row default, so it's a real,
- * self-imposed limit rather than one the server would silently re-impose.
- *
- * The truncation direction is also chosen, not incidental: the query orders
- * `created_at` descending, so hitting this ceiling drops the *oldest*
- * reports, never the newest. On a safety surface, losing the tail of stale
- * history is the tolerable failure; losing today's report would not be. And
- * it is never silent either way — see `SiteDetailResult.truncated`.
+ * Ceiling on the site-detail hazard read. Smaller than the flag read's limit
+ * because it returns whole rows for one site. The query orders newest-first,
+ * so hitting it drops the oldest reports, never today's.
  */
 export const SITE_DETAIL_HAZARD_LIMIT = 200;
 
-/** Clamp a caller-supplied limit into `[1, MAX_SITE_QUERY_LIMIT]`. A
- * non-finite/absent value falls back to the default rather than to
- * "unbounded" — same fail-closed discipline as
- * `src/lib/webcam-extraction/rate-cap.ts`'s env-override handling. */
+/** Clamps a caller-supplied limit into `[1, MAX_SITE_QUERY_LIMIT]`; anything non-finite falls back to the default, never to "unbounded". */
 function clampLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || !Number.isFinite(limit)) return DEFAULT_SITE_QUERY_LIMIT;
   return Math.min(Math.max(Math.trunc(limit), 1), MAX_SITE_QUERY_LIMIT);
@@ -263,10 +151,7 @@ function normalizeSite(row: RawSiteRow): Site {
     ...row,
     latitude: toNumber(row.latitude),
     longitude: toNumber(row.longitude),
-    // Written explicitly (rather than left to the spread) so a row read from
-    // a project where 0012 hasn't been applied yet lands on an explicit
-    // `null` — "not recorded" — instead of an absent key that a caller might
-    // read as `undefined` and treat differently.
+    // Explicit so a missing column lands on `null` ("not recorded"), not `undefined`.
     depth_min_ft: toNullableNumber(row.depth_min_ft),
     depth_max_ft: toNullableNumber(row.depth_max_ft),
     shore_access: row.shore_access ?? null,
@@ -279,12 +164,7 @@ function normalizeSite(row: RawSiteRow): Site {
   };
 }
 
-/** `RawSiteMarkerRow` + the derived hazard flag → `SiteMarker`. One helper so
- * `listSitesWithHazardFlag` and `listSitesInBounds` build pins identically —
- * the mapping counterpart of `SITE_MARKER_COLUMNS`, which already exists so
- * the two queries can't select different columns. Before this they held two
- * hand-maintained copies of the same object literal, i.e. exactly the drift
- * that constant was introduced to prevent, one layer down. */
+/** Row + derived hazard flag → `SiteMarker`; the single mapping every pin query shares. */
 function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean, latestHazardReportAt: string | null): SiteMarker {
   return {
     id: row.id,
@@ -306,38 +186,19 @@ function normalizeMarker(row: RawSiteMarkerRow, hasHazardReport: boolean, latest
 export interface ListSitesResult {
   sites: SiteMarker[];
   /**
-   * `true` when the query came back holding exactly as many rows as it asked
-   * for, which means more rows may exist that this result does not contain.
-   * It is a "may be incomplete" signal, not a "definitely dropped rows" one —
-   * a table with exactly `limit` rows trips it too. That asymmetry is
-   * deliberate: over-reporting possible incompleteness is safe, under-
-   * reporting it is exactly the silent-truncation failure this flag exists to
-   * make impossible.
-   *
-   * Callers must never render a list that has this set as if it were the
-   * complete picture (CLAUDE.md: "Never let a UI imply a guarantee the system
-   * can't back"). Added as a new field rather than a changed shape, so
-   * existing `{ sites, error }` destructuring callers keep compiling.
+   * The query returned exactly as many rows as it asked for, so more may
+   * exist. A "may be incomplete" signal — callers must never present such a
+   * list as the complete picture.
    */
   truncated: boolean;
   error: string | null;
 }
 
 /**
- * Every site, reduced to the map-pin-rendering shape (Task 11.5, wiring
- * `src/components/site-map.tsx`). `hasHazardReport` is derived from a
- * second, separate `hazard_reports` query (selecting only `site_id`) rather
- * than a join/count in one round trip — both tables are small in v1 and this
- * keeps each query simple and independently cacheable; revisit with a real
- * join if `hazard_reports` grows large enough for this to matter.
- *
- * **Deliberately still unfiltered geographically** (T21.12): the homepage is
- * a Server Component and geolocation is browser-only, so there are no user
- * coordinates server-side to bound this by — a global-ish list is a real use
- * case, not an oversight. What changed is that it is now *bounded* and
- * *honest about it*: both reads carry an explicit `.limit()`, and hitting
- * either one sets `truncated`. Prefer `listSitesInBounds()` wherever real
- * coordinates or a map viewport are available.
+ * Every site as a map pin, for the homepage's server render. Not filtered by
+ * location (there are no user coordinates server-side) but bounded, and
+ * `truncated` says when a limit was hit. Prefer `listSitesNear()` whenever a
+ * real centre and radius exist.
  */
 export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
   try {
@@ -350,24 +211,10 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
         .order("name", { ascending: true })
         .limit(DEFAULT_SITE_QUERY_LIMIT)
         .returns<RawSiteMarkerRow[]>(),
-      // Kept as a parallel, unscoped read (not `.in("site_id", ids)` like
-      // `listSitesInBounds` does) so this stays one round trip rather than
-      // two — the site ids aren't known until the first query resolves. The
-      // cost is that a truncated hazard read could leave a real hazard
-      // report's site rendering *without* its flag, i.e. failing toward
-      // looking safer than reality — the wrong direction. That's precisely
-      // why hitting this limit also sets `truncated` below, rather than being
-      // quietly tolerated.
-      //
-      // `created_at` + `.order(desc)` (T13 v5 addition): this used to select
-      // only `site_id` to derive a plain boolean flag. Now it also derives
-      // `latestHazardReportAt` per site for pin-level recency — ordering
-      // newest-first means the *first* row seen for a given `site_id` while
-      // building the map below is always its most recent report, and (as a
-      // side benefit) a truncation now preferentially keeps the newest
-      // reports system-wide rather than an arbitrary unordered slice, same
-      // "lose the tail of stale history, never today's report" direction
-      // `getSiteWithHazards` already established for the single-site read.
+      // Read in parallel (site ids aren't known yet), so it is bounded
+      // separately: a truncated hazard read would hide a real hazard flag,
+      // which is why hitting its limit also sets `truncated`. Newest-first, so
+      // the first row per site is its latest report.
       supabase
         .from("hazard_reports")
         .select("site_id, created_at")
@@ -404,141 +251,13 @@ export async function listSitesWithHazardFlag(): Promise<ListSitesResult> {
 
     return { sites, truncated, error: null };
   } catch (error) {
-    // Expected until a real Supabase project/env vars exist (P0-A.1) — fail
-    // toward an empty list + visible error, never toward silently showing
-    // stale/mock data as if it were real (THREAT_MODEL.md §2's "fail toward
-    // looking less fresh, not more" principle, applied to "real vs. mock"
-    // instead of "fresh vs. stale").
+    // Fail toward an empty list plus a visible error, never toward stale or mock data.
     logger.error("sites.list_failed", { error: errorMessage(error) });
-    // `truncated: false` alongside a set `error`: the list is empty, not
-    // partial, and the caller is already required to surface `error`.
     return { sites: [], truncated: false, error: errorMessage(error) };
   }
 }
 
-export interface ListSitesInBoundsParams {
-  /** Northern latitude edge (inclusive). */
-  north: number;
-  /** Southern latitude edge (inclusive). */
-  south: number;
-  /** Eastern longitude edge (inclusive). */
-  east: number;
-  /** Western longitude edge (inclusive). */
-  west: number;
-  /** Max rows to return. Clamped to `[1, MAX_SITE_QUERY_LIMIT]`; defaults to `DEFAULT_SITE_QUERY_LIMIT`. */
-  limit?: number;
-}
-
-/**
- * Sites inside a lat/lng bounding box, filtered **server-side** (T21.12) —
- * the bounded counterpart to `listSitesWithHazardFlag`. Use this anywhere
- * real coordinates or a map viewport exist; it exists so callers stop pulling
- * the whole table down and filtering by radius in JavaScript, which stops
- * working the moment the table outgrows PostgREST's silent row ceiling.
- *
- * The `hazard_reports` companion read is scoped with `.in("site_id", ...)` to
- * exactly the sites this call returned, so it is a second *bounded* read
- * rather than a second full-table one. That also makes `hasHazardReport`
- * strictly more trustworthy here than in `listSitesWithHazardFlag`: the
- * hazard rows can only be for sites already in hand.
- *
- * **Antimeridian (±180°) — handled, not documented-around.** A box that
- * crosses the antimeridian has `west > east` (e.g. west 170, east -170), and
- * cannot be expressed as `longitude >= west AND longitude <= east` — that
- * conjunction is unsatisfiable and would return zero rows, silently, for
- * every Pacific user. Detected explicitly and expressed as
- * `longitude >= west OR longitude <= east` via PostgREST's `or=(...)`, which
- * still ANDs against the latitude bounds. Latitude needs no equivalent case:
- * it doesn't wrap.
- */
-export async function listSitesInBounds(params: ListSitesInBoundsParams): Promise<ListSitesResult> {
-  const { north, south, east, west } = params;
-  const limit = clampLimit(params.limit);
-
-  // Validate before touching the network: a malformed box would otherwise
-  // become a query returning zero rows, which is indistinguishable from
-  // "genuinely no sites here" — the exact silent-wrong-answer class of bug
-  // this whole function exists to remove.
-  if (![north, south, east, west].every((value) => typeof value === "number" && Number.isFinite(value))) {
-    const message = "Invalid bounding box: north/south/east/west must all be finite numbers.";
-    logger.warn("sites.bounds_invalid", { north, south, east, west, reason: "non_finite" });
-    return { sites: [], truncated: false, error: message };
-  }
-
-  if (north < south) {
-    const message = `Invalid bounding box: north (${north}) is south of south (${south}).`;
-    logger.warn("sites.bounds_invalid", { north, south, reason: "inverted_latitude" });
-    return { sites: [], truncated: false, error: message };
-  }
-
-  try {
-    const supabase = await createClient();
-
-    const base = supabase.from("sites").select(SITE_MARKER_COLUMNS).gte("latitude", south).lte("latitude", north);
-
-    // west > east is the antimeridian-crossing case (see the doc comment).
-    const bounded = west > east
-      ? base.or(`longitude.gte.${west},longitude.lte.${east}`)
-      : base.gte("longitude", west).lte("longitude", east);
-
-    const sitesResult = await bounded
-      .order("name", { ascending: true })
-      .limit(limit)
-      .returns<RawSiteMarkerRow[]>();
-
-    if (sitesResult.error) throw sitesResult.error;
-
-    const siteRows = sitesResult.data ?? [];
-    const sitesTruncated = siteRows.length >= limit;
-
-    const { latestHazardBySiteId, truncated: hazardsTruncated } = await fetchLatestHazardBySite(
-      supabase,
-      siteRows.map((row) => row.id),
-    );
-
-    const truncated = sitesTruncated || hazardsTruncated;
-    if (truncated) {
-      logger.warn("sites.bounds_truncated", {
-        siteCount: siteRows.length,
-        siteLimit: limit,
-        hazardLimit: HAZARD_FLAG_QUERY_LIMIT,
-        sitesTruncated,
-        hazardsTruncated,
-        north,
-        south,
-        east,
-        west,
-      });
-    }
-
-    const sites: SiteMarker[] = siteRows.map((row) =>
-      normalizeMarker(row, latestHazardBySiteId.has(row.id), latestHazardBySiteId.get(row.id) ?? null),
-    );
-
-    return { sites, truncated, error: null };
-  } catch (error) {
-    logger.error("sites.bounds_failed", {
-      north,
-      south,
-      east,
-      west,
-      limit,
-      error: errorMessage(error),
-    });
-    return { sites: [], truncated: false, error: errorMessage(error) };
-  }
-}
-
-/**
- * Reduces a (newest-first-ordered) list of `{ site_id, created_at }` rows
- * down to one timestamp per site — the most recent report on file for that
- * site. Relies on the caller having already ordered the rows `created_at`
- * descending: the *first* row seen for a given `site_id` is then always its
- * latest, so this is a single pass with no per-row comparison needed. Shared
- * by both hazard-flag call sites (`listSitesWithHazardFlag` and
- * `fetchLatestHazardBySite` below) so the reduction logic can't drift
- * between them.
- */
+/** One latest timestamp per site. Requires rows ordered newest-first: the first row seen for a site is its latest. */
 function latestHazardTimestampBySite(rows: { site_id: string; created_at: string }[]): Map<string, string> {
   const latest = new Map<string, string>();
   for (const row of rows) {
@@ -547,19 +266,7 @@ function latestHazardTimestampBySite(rows: { site_id: string; created_at: string
   return latest;
 }
 
-/**
- * `hazard_reports.site_id` → most recent `created_at`, for a known set of
- * sites. Throws on a Supabase error so the caller's own try/catch owns the
- * single error-shaping path — this helper is internal and never called
- * outside one.
- *
- * Was `fetchHazardSiteIds` (T13 v5 addition renamed it): it used to return
- * only a `Set<string>` of site ids with any report on file, enough for the
- * boolean `hasHazardReport` flag. Now selects `created_at` too and returns a
- * `Map` of latest timestamp per site instead — `hasHazardReport` is still
- * derivable from it (`.has(id)`), so no caller lost information, and
- * `normalizeMarker` now has what it needs for pin-level recency.
- */
+/** Latest hazard-report time per site, for a known set of sites. Throws on a query error; callers own the error shaping. */
 async function fetchLatestHazardBySite(
   supabase: Awaited<ReturnType<typeof createClient>>,
   siteIds: string[],
@@ -572,8 +279,7 @@ async function fetchLatestHazardBySite(
     .from("hazard_reports")
     .select("site_id, created_at")
     .in("site_id", siteIds)
-    // Newest first — see `latestHazardTimestampBySite`'s own comment for why
-    // the ordering here is load-bearing, not cosmetic.
+    // Newest first — `latestHazardTimestampBySite` depends on it.
     .order("created_at", { ascending: false })
     .limit(HAZARD_FLAG_QUERY_LIMIT)
     .returns<{ site_id: string; created_at: string }[]>();
@@ -597,15 +303,9 @@ export interface ListSitesNearParams {
 }
 
 /**
- * Sites within `radiusMiles` of a point, ordered nearest-first and
- * radius-filtered server-side by the `search_sites_near` SQL function
- * (`0016_search_sites_near.sql`, plan.md item 24). The counterpart to
- * `listSitesInBounds` when a real centre + radius exist rather than a
- * viewport — the `search-nearby` route's old bounding-box + `ORDER BY name
- * LIMIT 200` path returned an alphabetical, not nearest, slice in dense
- * areas. Same `.in("site_id", ...)` hazard companion read and
- * `normalizeMarker` as every other map query; fails toward
- * `{ sites: [], truncated: false, error }`, never throws.
+ * Sites within `radiusMiles` of a point, nearest first, filtered and ordered
+ * in SQL by `search_sites_near` (migration 0016) — so a row cap clips the
+ * farthest sites, not an arbitrary slice. Never throws.
  */
 export async function listSitesNear(params: ListSitesNearParams): Promise<ListSitesResult> {
   const { latitude, longitude, radiusMiles } = params;
@@ -682,39 +382,15 @@ export async function listSitesNear(params: ListSitesNearParams): Promise<ListSi
 export interface SiteDetailResult {
   site: Site | null;
   hazards: HazardReport[];
-  /**
-   * `true` when `hazards` came back holding exactly `SITE_DETAIL_HAZARD_LIMIT`
-   * rows, i.e. more reports may exist for this site than this result contains.
-   *
-   * Same "may be incomplete, not definitely dropped" semantics as
-   * `ListSitesResult.truncated`, and named the same on purpose so the two
-   * results in this module read alike. It refers **only to `hazards`** — the
-   * `site` read is a `maybeSingle()` and has nothing to truncate.
-   *
-   * Callers must not present the hazard list as this site's complete history
-   * when this is set (CLAUDE.md: "Never let a UI imply a guarantee the system
-   * can't back"). Added additively, so existing
-   * `{ site, hazards, error }` destructuring keeps compiling — no call site
-   * was changed by the pass that introduced it, the same way T21.12
-   * introduced `ListSitesResult.truncated`.
-   */
+  /** The hazard list hit `SITE_DETAIL_HAZARD_LIMIT`, so older reports may exist — never present it as the complete history. */
   truncated: boolean;
   error: string | null;
 }
 
 /**
- * A single site plus its hazard reports (Task 11.5's site detail page).
- * `site: null` with `error: null` means "no such site" (a `maybeSingle()`
- * miss, not a failure) — distinct from `error` being set, which means the
- * query itself failed. Callers must handle both cases separately.
- *
- * **Both reads name their columns** (`SITE_DETAIL_COLUMNS` /
- * `HAZARD_REPORT_COLUMNS`) rather than using `select("*")`, and the hazard
- * read is bounded by `SITE_DETAIL_HAZARD_LIMIT` (T21.16). See those constants
- * for why each matters — briefly: `*` makes a schema/code mismatch invisible
- * instead of loud, and an unbounded read is the same silent-truncation class
- * of bug T21.12 fixed in this file's other two functions, just at
- * single-site scale.
+ * One site plus its hazard reports. `site: null` with `error: null` means
+ * "no such site"; a set `error` means the query failed — callers handle the
+ * two separately.
  */
 export async function getSiteWithHazards(id: string): Promise<SiteDetailResult> {
   try {
@@ -726,10 +402,7 @@ export async function getSiteWithHazards(id: string): Promise<SiteDetailResult> 
         .from("hazard_reports")
         .select(HAZARD_REPORT_COLUMNS)
         .eq("site_id", id)
-        // Newest first, so the row this drops on truncation is always the
-        // oldest one — see SITE_DETAIL_HAZARD_LIMIT. The order/limit pairing
-        // is load-bearing, not cosmetic: reordering this without revisiting
-        // the limit would start dropping the *newest* hazard reports.
+        // Newest first, so truncation drops the oldest report. Keep order and limit together.
         .order("created_at", { ascending: false })
         .limit(SITE_DETAIL_HAZARD_LIMIT)
         .returns<HazardReport[]>(),
@@ -757,19 +430,12 @@ export async function getSiteWithHazards(id: string): Promise<SiteDetailResult> 
     };
   } catch (error) {
     logger.error("sites.detail_failed", { siteId: id, error: errorMessage(error) });
-    // `truncated: false` alongside a set `error`: nothing was returned at
-    // all, so it isn't a partial list — same convention as ListSitesResult's
-    // error path.
     return { site: null, hazards: [], truncated: false, error: errorMessage(error) };
   }
 }
 
 // ---------------------------------------------------------------------
-// lds_status — real reads, replacing `@/components/lds/lds-status`'s
-// `MOCK_LDS_MARKERS` (found 2026-08-10: the homepage map was rendering that
-// mock data live, unconditionally — not a fallback, the only data path that
-// existed. `lds_status` is a real table with real RLS as of 0001_init.sql;
-// nothing before this ever queried it).
+// lds_status (fill-station status)
 // ---------------------------------------------------------------------
 
 interface RawLdsStatusRow {
@@ -785,43 +451,24 @@ interface RawLdsStatusRow {
   created_at: string;
 }
 
-/** Every column `LdsStatusRow` needs — named explicitly rather than `select("*")`,
- * same reasoning as `SITE_DETAIL_COLUMNS`: a schema/code mismatch should fail
- * loudly here, not silently return whatever columns happen to exist.
- *
- * Exported (Task 16, 2026-08-20) so `src/app/api/lds/submit/route.ts` selects
- * the inserted row back with exactly this column list — that route hands the
- * new row straight to the client to merge into the same state this read
- * populates, so the two shapes have to stay identical by construction, not by
- * two literals happening to match. */
+/** Every column `LdsStatusRow` needs. Exported so the submit route selects its inserted row back in exactly this shape. */
 export const LDS_STATUS_COLUMNS =
   "id, site_id, name, latitude, longitude, status, provenance, last_verified_at, created_by, created_at";
 
-/** Same ceiling convention as `MAX_SITE_QUERY_LIMIT` — this table is small
- * today, but an explicit, honest limit costs nothing and means a future
- * silent-truncation failure mode is already handled rather than invited. */
+/** Explicit row ceiling, same convention as the site reads. */
 export const LDS_STATUS_QUERY_LIMIT = 1000;
 
 export interface LdsStatusMarkersResult {
-  /** Already collapsed to one row per shop via `latestStatusPerShop` — see
-   * `lds-status.ts`'s header on why `lds_status` is an append-only log
-   * rather than update-in-place. Callers render this directly; they never
-   * need the raw log. */
+  /** One row per shop (the latest report); `lds_status` itself is an append-only log. */
   markers: LdsStatusRow[];
   truncated: boolean;
   error: string | null;
 }
 
 /**
- * Real `lds_status` read (Task 16, replacing `MOCK_LDS_MARKERS`). Public
- * read per `lds_status`'s RLS (`0002_rls.sql`), so this never requires a
- * signed-in session — same posture as `listSitesWithHazardFlag`.
- *
- * An empty result is the honest, expected state until real shop
- * verifications exist — this function does NOT fall back to mock data on
- * an empty table, only on a genuine read failure does it degrade (to an
- * empty list, never to fabricated markers), per CLAUDE.md's standing rule
- * against a UI implying data it doesn't have.
+ * Latest fill-station status per shop. An empty result is a legitimate
+ * state; on a read failure this returns an empty list and an error, never
+ * placeholder markers.
  */
 export async function listLdsStatusMarkers(): Promise<LdsStatusMarkersResult> {
   try {

@@ -1,3 +1,4 @@
+export { DiveLogBackupPanel } from "./dive-log-backup-panel";
 export { DiveLogForm } from "./dive-log-form";
 export type { DiveLogFormProps } from "./dive-log-form";
 export { FieldTagBadge } from "./field-tag-badge";

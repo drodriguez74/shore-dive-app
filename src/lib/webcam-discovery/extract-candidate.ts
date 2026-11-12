@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { WEBCAM_EXTRACTION_MODEL_ID, WEBCAM_WORKER_MAX_TOKENS } from "@/lib/webcam-extraction/model";
 import { logger } from "./logger";
 import type { CandidateSourceInput, ExtractedCandidate } from "./types";
 
@@ -17,16 +18,9 @@ import type { CandidateSourceInput, ExtractedCandidate } from "./types";
  * clear, actionable error if the key is missing, rather than silently
  * no-opping or fabricating a result.
  *
- * Text-only extraction -- normalizing a URL + free-text context needs no
- * vision -- so this reuses the same cheap/fast model
- * `webcam-extraction/model.ts` already settled on for this codebase's
- * AI-backed workers (`claude-haiku-4-5-20251001`, the cheapest current
- * vision-capable Claude model at the time that file was written, and
- * perfectly adequate for plain-text normalization too). See that file's
- * header for the full founder-cost-flag reasoning (the Anthropic API has
- * no free tier at all) -- the same caveat applies here, and the same
- * "reconfirm this is still the cheapest option before enabling against
- * real spend" note holds.
+ * Text-only extraction, so this reuses the cheap model and token settings
+ * `webcam-extraction/model.ts` defines for this codebase's AI workers; the
+ * same "the Anthropic API has no free tier" cost caveat applies.
  *
  * Unlike Task 18's scheduled worker (`run-extraction.ts`, gated behind
  * `WEBCAM_EXTRACTION_ENABLED` + a daily call cap because a misfiring cron
@@ -40,7 +34,6 @@ import type { CandidateSourceInput, ExtractedCandidate } from "./types";
  * could rack up unbounded spend on its own.
  */
 
-const MODEL_ID = "claude-haiku-4-5-20251001";
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -151,9 +144,10 @@ export async function extractCandidate(input: CandidateSourceInput): Promise<Ext
   const client = getClient();
 
   const response = await client.messages.create({
-    model: MODEL_ID,
-    max_tokens: 512,
+    model: WEBCAM_EXTRACTION_MODEL_ID,
+    max_tokens: WEBCAM_WORKER_MAX_TOKENS,
     output_config: {
+      effort: "low",
       format: { type: "json_schema", schema: RESPONSE_SCHEMA },
     },
     messages: [

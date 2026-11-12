@@ -28,6 +28,7 @@ export const PREFETCH_FAILURE_MESSAGE: Record<PrefetchFailureReason, string> = {
   offline: "You're offline — connect to save this site. Nothing new was saved.",
   "not-configured": "Offline saving isn't set up on this server yet. Nothing was saved.",
   "not-found": "This site no longer exists, so there's nothing to save.",
+  "rate-limited": "Too many saves in a short time. Nothing new was saved — wait a minute and try again.",
   network: "Couldn't reach the server. Nothing new was saved — try again with a connection.",
   "invalid-bundle": "The server sent data we couldn't read. Nothing was saved.",
   "verification-failed": "The download failed its integrity check, so it was discarded. Try again.",
@@ -90,7 +91,8 @@ export function PrefetchButton({ siteId, className = "" }: PrefetchButtonProps) 
       {cachedAt && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Site details and hazard reports are saved on this device as of the time shown — anything reported
-          later isn&apos;t included, and map tiles aren&apos;t guaranteed offline.{" "}
+          later isn&apos;t included, and map tiles aren&apos;t guaranteed offline. Stale copies refresh when you
+          open the app with a connection, never in the background.{" "}
           <Link href="/offline" className="font-medium underline underline-offset-2 hover:no-underline">
             View saved sites
           </Link>

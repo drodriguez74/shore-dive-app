@@ -9,10 +9,17 @@
  * sites before being consolidated here — import this instead of writing a
  * new local copy.
  */
+const MAX_LENGTH = 500;
+
+/** Upstream failures can carry a whole HTML error page as their "message" — keep logs readable. */
+function clip(message: string): string {
+  return message.length > MAX_LENGTH ? `${message.slice(0, MAX_LENGTH)}… [truncated]` : message;
+}
+
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) return clip(error.message);
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-    return error.message;
+    return clip(error.message);
   }
-  return String(error);
+  return clip(String(error));
 }

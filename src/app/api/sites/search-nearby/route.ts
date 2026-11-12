@@ -58,6 +58,9 @@ import { logger } from "@/lib/sites/logger";
 // per-area cooldown in external-search-cache.ts, corrected same-day from
 // an original 24h spec — see that file's header comment). plan.md/TASKS.md
 // name 3 as the example threshold.
+/** Client-facing text for a failed local read; the real error stays in the server log. */
+const SITE_DATABASE_UNAVAILABLE = "The site database is unreachable right now.";
+
 const LOCAL_RESULT_THRESHOLD = 3;
 
 // Defensive upper bound — this route (and, if it falls through to Overpass,
@@ -164,7 +167,7 @@ export async function GET(request: NextRequest) {
 
   if (localError) {
     logger.error("search_nearby.local_query_failed", { error: localError, lat, lng, radiusMiles });
-    return NextResponse.json({ sites: [], error: localError, searchedExternally: false, truncated: false }, { status: 200 });
+    return NextResponse.json({ sites: [], error: SITE_DATABASE_UNAVAILABLE, searchedExternally: false, truncated: false }, { status: 200 });
   }
 
   // Tracks whichever result set actually ends up in the response —

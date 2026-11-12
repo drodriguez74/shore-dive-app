@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isModerator } from "@/lib/supabase/moderators";
 import { isCameraSourceDecision, type CameraSource } from "@/lib/camera-sources/types";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/camera-sources/logger";
@@ -76,8 +77,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
   const decision = body.decision;
 
-  // --- Auth check: signed-in user required. See the honest-gap comment ---
-  // --- above — this is NOT a moderator check, no such role exists yet. ---
+  // Auth check: signed-in AND on the MODERATOR_EMAILS allowlist.
   let reviewerId: string;
   try {
     const supabase = await createServerClient();
@@ -88,6 +88,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     if (authError || !user) {
       return NextResponse.json({ error: "Sign-in required to review camera sources." }, { status: 401 });
+    }
+    if (!isModerator(user)) {
+      logger.warn("review.not_a_moderator", { id, userId: user.id });
+      return NextResponse.json({ error: "Only moderators can review camera sources." }, { status: 403 });
     }
     reviewerId = user.id;
   } catch (error) {

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { CHOP_STATES } from "./types";
-import { WEBCAM_EXTRACTION_MODEL_ID } from "./model";
+import { WEBCAM_EXTRACTION_MODEL_ID, WEBCAM_WORKER_MAX_TOKENS } from "./model";
 import { logger } from "./logger";
 import type { RawModelOutput } from "./shape-reading";
 
@@ -95,8 +95,9 @@ export async function extractVisibilityAndChop(input: VisionExtractionInput): Pr
 
   const response = await client.messages.create({
     model: WEBCAM_EXTRACTION_MODEL_ID,
-    max_tokens: 512,
+    max_tokens: WEBCAM_WORKER_MAX_TOKENS,
     output_config: {
+      effort: "low",
       format: { type: "json_schema", schema: RESPONSE_SCHEMA },
     },
     messages: [

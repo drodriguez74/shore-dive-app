@@ -188,6 +188,31 @@ export function saveDiveLogEntry(submission: DiveLogSubmission): DiveLogEntry {
 
 // --- Reactive read access -------------------------------------------------
 
+/**
+ * Adds entries restored from an account backup that aren't already on this
+ * device. Anything that fails validation is dropped, never stored. Returns
+ * how many were added.
+ */
+export function mergeDiveLogEntries(incoming: unknown[]): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const existing = loadDiveLogEntries();
+    const knownIds = new Set(existing.map((entry) => entry.id));
+    const additions = incoming
+      .map(withNewFieldDefaults)
+      .filter(isValidEntry)
+      .filter((entry) => !knownIds.has(entry.id) && knownIds.add(entry.id));
+    if (additions.length === 0) return 0;
+    const next = [...existing, ...additions].sort((a, b) => b.loggedAt - a.loggedAt).slice(0, MAX_STORED_ENTRIES);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    notifyEntriesChanged(next);
+    return next.filter((entry) => additions.includes(entry)).length;
+  } catch (err) {
+    logger.warn("storage.merge-failed", { error: String(err) });
+    return 0;
+  }
+}
+
 let cachedEntries: DiveLogEntry[] | null = null;
 const listeners = new Set<() => void>();
 // Stable reference (not a fresh [] per call) — useSyncExternalStore requires

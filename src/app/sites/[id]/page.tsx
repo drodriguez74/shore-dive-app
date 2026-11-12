@@ -16,59 +16,13 @@ import type { SiteMarker } from "@/lib/sites/types";
 import { AddToDivePlanForm } from "./add-to-dive-plan-form";
 
 /**
- * Site detail page (Task 11.5 / plan.md v5 MVP item #1) — the first real,
- * reachable destination for a `sites` row anywhere in the app. Public read
- * (no auth needed for the site/hazard data itself, matching `sites`' RLS),
- * with an inline auth check ONLY for the "add to dive plan" action — same
- * split `src/app/moderation/camera-sources/page.tsx` already uses (public
- * data load first, auth check only for the part of the page that actually
- * needs it), not a full route guard on the whole page.
+ * Site detail page. Public read (matching `sites`' RLS); the auth check
+ * only gates the "add to dive plan" form and never blocks the public data.
  *
- * Also the home of `PrefetchButton` (T12.6), which saves this site's signed
- * offline bundle to IndexedDB (readable at `/offline`).
- * `PretripChecklist` (T12.7) is NOT mounted here (moved 2026-08-13, see
- * scope note below) — it lives on `/dive-plans` now, the real cross-site
- * "your whole plan" view this page's own prior comment named as its
- * eventual home.
- *
- * T21.22 enriched this page for the founder's actual reader: "I want to know
- * of all dive sites as I may end up on a boat charter going there. Or
- * specifically target one that does." So it is deliberately informative about
- * a site the reader *cannot currently dive* — a location map, depth against
- * recreational training limits (a technical-depth wreck is labelled plainly,
- * not hidden), shore access framed as plausible-never-confirmed, and an
- * explicit account of where the data came from. The copy rules those sections
- * follow are documented on `site-dive-profile.tsx` and `site-sources.tsx`;
- * they are the source modules' own constraints made visible, not stylistic
- * choices, and changing them means re-reading
- * `src/lib/sites/{shore-access,dive-suitability}.ts` first.
- *
- * Scope notes (read before extending):
- * - Tide-station link (plan.md's "optional/bonus" item) IS built here —
- *   `SiteTideLink`, mounted below. It renders nothing for the (currently
- *   large) majority of sites with no NOAA station nearby; see that
- *   component's and `src/lib/tides/noaa-stations.ts`'s own headers for the
- *   full reasoning (static station snapshot, link-out only, no in-app tide
- *   data).
- * - `PretripChecklist` used to be mounted here with an explicit empty plan
- *   (`plan={[]}`) — meaning it rendered nothing, ever, on this page (its own
- *   `if (plan.length === 0) return null`). An earlier version of this page
- *   omitted the prop entirely and got a hardcoded `MOCK_PLAN` default for
- *   free, which meant every single site's detail page showed "La Jolla Cove
- *   diving today" / "Shaw's Cove diving today" regardless of which real site
- *   you were looking at (caught 2026-08-09, same root cause as the mock
- *   block that was also on the homepage); `MOCK_PLAN` was removed
- *   2026-08-10, leaving the always-empty, always-invisible mount behind as
- *   dead code — found in the 2026-08-13 UX audit (`TASKS.md` T25). **Fixed
- *   the same day**: `/dive-plans` (new) is the real cross-site "your whole
- *   plan" view this note used to describe as a future follow-up, and it's
- *   the one place `PretripChecklist` mounts now, fed real
- *   `dive_plans` rows via `listDivePlansForUser()`. Nothing to mount here
- *   anymore — a single site's own page has no "whole plan" to show.
- * - The pin-tap flow's designed "compact preview bottom sheet" (before
- *   landing here) IS built — `src/components/site-pin-preview-sheet.tsx`,
- *   wired into `site-map.tsx`. This note previously said otherwise; that was
- *   stale by the time of the 2026-08-13 restyle pass and is corrected here.
+ * Deliberately informative about sites the reader can't currently dive —
+ * a technical-depth wreck is labelled plainly, not hidden, and shore access
+ * is framed as plausible, never confirmed. The copy rules for those sections
+ * live in `site-dive-profile.tsx` and `site-sources.tsx`.
  */
 
 export const dynamic = "force-dynamic";
@@ -104,7 +58,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     return (
       <PageShell>
         <NoticeCard title="Couldn't load this site">
-          <p>{error}</p>
+          <p>The site database is unreachable right now. Try reloading shortly.</p>
         </NoticeCard>
       </PageShell>
     );
@@ -128,20 +82,14 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     } = await supabase.auth.getUser();
     userId = user?.id ?? null;
   } catch (authError) {
-    // A failed auth check must never block reading public site data — it
-    // only means the "add to dive plan" action degrades to a sign-in
-    // prompt, same fail-safe direction `moderation/camera-sources/page.tsx`
-    // takes.
+    // A failed auth check only degrades the dive-plan form to a sign-in prompt.
     logger.error("site_detail.auth_check_failed", {
       siteId: id,
       error: authError instanceof Error ? authError.message : String(authError),
     });
   }
 
-  // The exploration map's own pin input shape — passed straight through so
-  // `SiteLocationMap` renders this site with the identical icon it carries on
-  // the homepage map (same `pin-icons.ts` spec), rather than a second,
-  // drifting representation of the same site.
+  // Same shape the homepage map uses, so this site renders with the identical pin.
   const marker: SiteMarker & Pick<typeof site, "shore_entry_id" | "shore_distance_yards"> = {
     id: site.id,
     name: site.name,
@@ -155,11 +103,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
     shore_entry_id: site.shore_entry_id,
     shore_distance_yards: site.shore_distance_yards,
     hasHazardReport: hazards.length > 0,
-    // `hazards` is already ordered newest-first (`getSiteWithHazards`'s own
-    // `.order("created_at", { ascending: false })`), so the first element is
-    // this site's most recent report — feeds the pin's own stale/fresh fill
-    // via `SiteLocationMap`, same recency signal the hazard-report list
-    // below renders as text via `HazardRecencyBadge`.
+    // `hazards` is newest-first, so the first element is the latest report.
     latestHazardReportAt: hazards[0]?.created_at ?? null,
   };
 
@@ -185,13 +129,7 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
 
       <SiteLocationMap site={marker} />
 
-      {/* The description is the richest real content most imported rows carry
-          (OSM's own free-text entry) AND the carrier of the required ODbL
-          attribution — `osm-import.ts` writes it as blank-line-separated
-          paragraphs. Rendering it in a single <p> collapsed all of that into
-          one wall of text; splitting on blank lines is what makes the
-          attribution and the reported-depth line actually readable rather
-          than buried. */}
+      {/* Blank-line-separated paragraphs: the last one carries the required source attribution. */}
       {site.description && (
         <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-depth-border dark:bg-depth-1">
           <h2 className="text-sm font-semibold text-black dark:text-zinc-50">About this site</h2>
@@ -235,13 +173,6 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <ProvenanceBadge provenance={hazard.provenance} />
-                  {/* Staleness treatment (plan.md's Task 13 v5 addition) — a
-                      raw `toLocaleDateString()` used to sit here with no
-                      recency weighting at all, so a 3-week-old report and a
-                      2-hour-old one read identically. Same freshness/
-                      staleness language `LastVerifiedBadge` already
-                      established elsewhere in this app, extended to a third
-                      "aging" tier per `hazard-recency.ts`'s own reasoning. */}
                   <HazardRecencyBadge reportedAt={hazard.created_at} />
                 </div>
                 <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-300">{hazard.description}</p>
@@ -249,9 +180,6 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
             ))}
           </ul>
         )}
-        {/* `getSiteWithHazards` already tells callers when its hazard read came
-            back at the cap; saying nothing would present a partial history as
-            the complete one. */}
         {truncated && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
             Showing the {SITE_DETAIL_HAZARD_LIMIT} most recent reports — this site has more on file than are
@@ -264,8 +192,8 @@ export default async function SiteDetailPage({ params }: SiteDetailPageProps) {
         <h2 className="text-sm font-semibold text-black dark:text-zinc-50">Offline access</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Save this site&apos;s details and hazard reports to this device before you lose signal at the
-          water&apos;s edge. A saved copy doesn&apos;t update on its own — refresh it whenever you&apos;re back
-          online.
+          water&apos;s edge. A saved copy only refreshes while the app is open with a connection, so refresh it
+          before you head out.
         </p>
         <PrefetchButton siteId={site.id} />
       </section>

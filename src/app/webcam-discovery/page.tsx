@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { isModerator } from "@/lib/supabase/moderators";
 import { errorMessage } from "@/lib/error-message";
 import { logger } from "@/lib/webcam-discovery/logger";
 import { DiscoveryForm } from "./discovery-form";
@@ -62,18 +63,30 @@ export default async function WebcamDiscoveryPage() {
   }
 
   let isSignedIn = false;
+  let userIsModerator = false;
   try {
     const supabase = await createServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     isSignedIn = Boolean(user);
+    userIsModerator = isModerator(user);
   } catch (error) {
     logger.error("page.auth_check_failed", { error: errorMessage(error) });
     return (
       <PageShell>
         <NoticeCard title="Could not check sign-in status">
           <p>Something went wrong verifying your session. Try reloading, or sign in again.</p>
+        </NoticeCard>
+      </PageShell>
+    );
+  }
+
+  if (isSignedIn && !userIsModerator) {
+    return (
+      <PageShell>
+        <NoticeCard title="Moderators only">
+          <p>Your account isn&apos;t on the moderator list, so this tool isn&apos;t available.</p>
         </NoticeCard>
       </PageShell>
     );

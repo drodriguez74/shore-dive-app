@@ -39,7 +39,12 @@ import type { SafeReturnStatus } from "@/hooks/use-safe-return-timer";
 import { usePostDivePromptTrigger, type DivePlanCheckInState } from "@/hooks/use-post-dive-prompt-trigger";
 import { PostDivePrompt, usePostDiveConditionLogs } from "@/components/post-dive-prompt";
 import { useVoiceLogFlow } from "@/hooks/use-voice-log-flow";
-import { RecentDiveLogs, VoiceLogFlowView, VoiceLoggingSettingsPanel } from "@/components/voice-logging";
+import {
+  DiveLogBackupPanel,
+  RecentDiveLogs,
+  VoiceLogFlowView,
+  VoiceLoggingSettingsPanel,
+} from "@/components/voice-logging";
 
 const SAFE_RETURN_STATUSES: { value: SafeReturnStatus; label: string; description: string }[] = [
   { value: "idle", label: "Idle", description: "No timer running." },
@@ -192,6 +197,8 @@ export default function PostDivePage() {
         )}
 
         <RecentDiveLogs />
+
+        <DiveLogBackupPanel />
 
         <VoiceLoggingSettingsPanel onLogDiveNow={voiceFlow.startManual} />
 

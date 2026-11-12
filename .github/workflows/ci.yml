@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # LayoutProps/PageProps are generated types; a fresh checkout has none until this runs.
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm test
+      # No secrets needed: the app is built to degrade without Supabase/Mapbox env vars.
+      - run: npm run build

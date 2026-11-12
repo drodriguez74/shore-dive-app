@@ -6,6 +6,43 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
+## 2026-11-11 (later) — the review's 15 recommendations: done
+
+Branch `feature/offline-bundles-and-maintenance`, all pushed. `tsc` / lint / **1095 tests** / build clean.
+
+**Done (one commit each)**
+- #1 Moderator allowlist (`MODERATOR_EMAILS`, fail closed) on the moderation queue, its review route, and both webcam-discovery entry points.
+- #2 CI workflow — lint, typecheck, tests, no-secrets build.
+- #3 Keep-alive workflow → `GET /api/health`, daily.
+- #4 Safe-Return UI tests (hold-to-confirm + start/running/expired screens).
+- #5 Security headers (partial CSP — see "Deliberately partial").
+- #6 Raw backend errors no longer returned or rendered; `errorMessage()` clips long messages.
+- #7 In-memory rate limit on `offline-bundle` and `verify-bundle`.
+- #8 Proxy, header and homepage skip the auth round-trip for visitors with no session cookie.
+- #9 Homepage streams the map section behind a fast shell.
+- #10 Opt-in dive-log backup + restore (`0017_dive_logs.sql`, `src/lib/dive-logs/backup.ts`, panel on `/post-dive`).
+- #11 Comments condensed in `queries.ts` (742 → 503 lines) and the site detail page; code verified unchanged.
+- #12 `dive-site-explorer.tsx` split (819 → 244 lines): `lib/sites/explorer-filters.ts`, `hooks/use-nearby-search.ts`, `hooks/use-area-research.ts`, all tested. Fixed a loading-state race found on the way.
+- #13 Dead code removed. #14 Webcam workers on `claude-haiku-5-5` (still disabled). #15 `TASKS.md` slimmed; narrative in `TASKS_ARCHIVE.md`.
+- Extras: saved offline sites auto-refresh when the app is opened online; `PRIVACY_POLICY_DRAFT.md` for founder review.
+
+**Verified in a real browser against the live database:** security headers with the map still rendering, `/api/health`, rate limiting (429 after 60/min), homepage streaming, the signed-out backup panel, and auto-refresh (a copy aged 10h refreshed on reopening the app).
+
+**Not verified:** the signed-in dive-log backup and restore flow (Google sign-in can't be automated, and `0017` isn't applied live) — unit-tested and the migration's access rules were checked on a scratch Postgres only.
+
+**Deliberately partial**
+- #5: the CSP has no `script-src`; that needs nonces for Next's inline scripts and Mapbox's workers.
+- #8: the layout is still `force-dynamic` because the header renders sign-in state server-side (an earlier deliberate choice to avoid a signed-out flash). Signed-in users still pay two auth calls per page.
+- #9: the homepage still reads up to 500 sites — that list is the explorer's fallback when location or nearby search is unavailable.
+- #11: `shore-access.ts` was left alone; its long comments are per-entry source citations.
+
+**Founder actions added by this batch**
+1. Set `MODERATOR_EMAILS` (your Google email) in `.env.local` and Vercel — until then nobody, including you, can open the moderation queue.
+2. Apply `supabase/migrations/0017_dive_logs.sql` in the SQL editor to make dive-log backup available.
+3. After merge, check the "Keep Supabase awake" workflow ran (Actions tab).
+
+---
+
 ## 2026-11-11 — holistic review: offline prefetch made real, maintenance, Supabase outage
 
 **State of the repo**
