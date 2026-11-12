@@ -6,35 +6,35 @@ this file is the fast orientation: *where we are, what just happened, what's nex
 
 ---
 
-## 2026-11-11 (later) — working through the review's 15 recommendations (IN PROGRESS)
+## 2026-11-11 (later) — the review's 15 recommendations: done
 
-Session stopped early (usage limit). Branch `feature/offline-bundles-and-maintenance`, all pushed.
-`tsc` / lint / **1079 tests** clean at the last commit.
+Branch `feature/offline-bundles-and-maintenance`, all pushed. `tsc` / lint / **1095 tests** / build clean.
 
-**Done and committed (one commit each)**
-- #1 Moderator allowlist (`MODERATOR_EMAILS`, fail closed) on `/moderation/camera-sources`, its review route, and both webcam-discovery entry points.
-- #2 CI workflow (`.github/workflows/ci.yml`) — lint, typecheck, tests, no-secrets build.
-- #3 Keep-alive (`.github/workflows/keep-alive.yml` → `GET /api/health`, daily).
+**Done (one commit each)**
+- #1 Moderator allowlist (`MODERATOR_EMAILS`, fail closed) on the moderation queue, its review route, and both webcam-discovery entry points.
+- #2 CI workflow — lint, typecheck, tests, no-secrets build.
+- #3 Keep-alive workflow → `GET /api/health`, daily.
 - #4 Safe-Return UI tests (hold-to-confirm + start/running/expired screens).
-- #5 Security headers in `next.config.ts` (partial CSP — no `script-src` yet).
-- #6 Raw backend errors no longer returned/rendered; `errorMessage()` clips long messages.
+- #5 Security headers (partial CSP — see "Deliberately partial").
+- #6 Raw backend errors no longer returned or rendered; `errorMessage()` clips long messages.
 - #7 In-memory rate limit on `offline-bundle` and `verify-bundle`.
-- #8 (partial) Proxy, header and homepage skip the auth round-trip for visitors with no session cookie. Layout is still `force-dynamic`.
-- #9 (partial) Homepage streams the map section behind a fast shell (Suspense). The 500-site read itself is unchanged — it is the explorer's fallback list.
-- #10 Opt-in dive-log account backup + restore (`0017_dive_logs.sql`, `src/lib/dive-logs/backup.ts`, panel on `/post-dive`). Migration validated on a scratch Postgres, **not applied to the live project**.
-- #13 Dead code removed (`listSitesInBounds`, bounding-box/sort helpers, `cachedHazards`).
-- #14 Webcam workers on `claude-haiku-5-5` (still disabled).
-- Extra: saved offline sites auto-refresh when the app is opened online (stale > 6h).
+- #8 Proxy, header and homepage skip the auth round-trip for visitors with no session cookie.
+- #9 Homepage streams the map section behind a fast shell.
+- #10 Opt-in dive-log backup + restore (`0017_dive_logs.sql`, `src/lib/dive-logs/backup.ts`, panel on `/post-dive`).
+- #11 Comments condensed in `queries.ts` (742 → 503 lines) and the site detail page; code verified unchanged.
+- #12 `dive-site-explorer.tsx` split (819 → 244 lines): `lib/sites/explorer-filters.ts`, `hooks/use-nearby-search.ts`, `hooks/use-area-research.ts`, all tested. Fixed a loading-state race found on the way.
+- #13 Dead code removed. #14 Webcam workers on `claude-haiku-5-5` (still disabled). #15 `TASKS.md` slimmed; narrative in `TASKS_ARCHIVE.md`.
+- Extras: saved offline sites auto-refresh when the app is opened online; `PRIVACY_POLICY_DRAFT.md` for founder review.
 
-**Also done since (all pushed)**
-- #15 `TASKS.md` slimmed to one line per finished item; full narrative in `TASKS_ARCHIVE.md`.
-- `PRIVACY_POLICY_DRAFT.md` written for founder review (not published).
-- Docs synced: `CLAUDE.md`, `.env.local.example` (`MODERATOR_EMAILS`), `supabase/README.md` (0017 + retention).
+**Verified in a real browser against the live database:** security headers with the map still rendering, `/api/health`, rate limiting (429 after 60/min), homepage streaming, the signed-out backup panel, and auto-refresh (a copy aged 10h refreshed on reopening the app).
 
-**Not started**
-- #11 Trim over-long comments in `dive-site-explorer.tsx`, `queries.ts`, `sites/[id]/page.tsx` (leave `shore-access.ts` per-entry citations — they are data provenance).
-- #12 Split `dive-site-explorer.tsx` (nearby-search effect + web-discovery state into hooks; keep the exported pure helpers importable from the same path — tests import them).
-- Not verified in a real browser yet: the dive-log backup panel, homepage streaming, saved-site auto-refresh.
+**Not verified:** the signed-in dive-log backup and restore flow (Google sign-in can't be automated, and `0017` isn't applied live) — unit-tested and the migration's access rules were checked on a scratch Postgres only.
+
+**Deliberately partial**
+- #5: the CSP has no `script-src`; that needs nonces for Next's inline scripts and Mapbox's workers.
+- #8: the layout is still `force-dynamic` because the header renders sign-in state server-side (an earlier deliberate choice to avoid a signed-out flash). Signed-in users still pay two auth calls per page.
+- #9: the homepage still reads up to 500 sites — that list is the explorer's fallback when location or nearby search is unavailable.
+- #11: `shore-access.ts` was left alone; its long comments are per-entry source citations.
 
 **Founder actions added by this batch**
 1. Set `MODERATOR_EMAILS` (your Google email) in `.env.local` and Vercel — until then nobody, including you, can open the moderation queue.

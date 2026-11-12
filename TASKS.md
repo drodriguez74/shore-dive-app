@@ -15,7 +15,6 @@ Update checkboxes as work lands. Don't let this drift from reality — if a task
 ## Open items at a glance
 
 - `[ ]` `P0-B.6` — Seed initial site data (founder-curated — content task, not engineering, since there's no community yet) … _(archive)_
-- `[~]` `T34` — **Review recommendations, 2026-11-11** — status and remaining items are in `HANDOFF.md`'s 2026-11-11 (later) section … _(archive)_
 - `[~]` `T31` — **Deploy-config fixes + AI-discovery flow bug triage, 2026-09-05 (founder live-testing the Vercel sandbox).** First session with real deployed-app + … _(archive)_
 - `[ ]` `T15.8` — Manually test on iOS Safari (installed-PWA and not) — document actual observed reliability, feed back into disclaimer copy if it's worse than assumed … _(archive)_
 - `[~]` `T17.2` — Ingestion connector for the first personally-negotiated camera source(s) — **partially done 2026-08-08.** The founder personally named real starting … _(archive)_
@@ -97,7 +96,7 @@ Finished items below are one line each; the full narrative for anything marked _
   - **Founder action:** set `BUNDLE_SIGNING_SECRET` in `.env.local` and Vercel, or Prefetch reports "isn't set up on this server yet".
 - [x] `T33` **Maintenance, 2026-11-11.** Next.js 16.3.0 → 16.4.6 (critical advisory GHSA-p293-qw3h-jr36) + `npm audit fix` … _(archive)_
 
-- [~] `T34` **Review recommendations, 2026-11-11** — status and remaining items are in `HANDOFF.md`'s 2026-11-11 (later) section. Done: moderator allowlist (`MODERATOR_EMAILS`), CI + keep-alive workflows, `/api/health`, security headers, error-text sanitising, rate limit on the offline endpoints, auth round-trip skip for anonymous visitors, homepage streaming, Safe-Return UI tests, opt-in dive-log backup (`0017_dive_logs.sql`, **not yet applied live**), saved-site auto-refresh, dead-code removal, webcam workers on `claude-haiku-5-5`. Open: comment trim, `dive-site-explorer.tsx` split, privacy-policy draft.
+- [x] `T34` **Review recommendations, 2026-11-11** — all 15 addressed (four deliberately partial); detail in `HANDOFF.md`'s 2026-11-11 (later) section. Founder actions: set `MODERATOR_EMAILS` and `BUNDLE_SIGNING_SECRET`, apply `0017_dive_logs.sql`.
 
 ### Task 13: Offline Sync Status UI (→ Task 13, → §2)
 - [x] `T13.1` "Cached as of [time]" freshness indicator component — `src/components/freshness-badge.tsx`, live-updating (re-renders every 60s so fresh→stale is visible without a reload)
