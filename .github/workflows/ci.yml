@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # LayoutProps/PageProps are generated types; a fresh checkout has none until this runs.
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm test
       # No secrets needed: the app is built to degrade without Supabase/Mapbox env vars.
