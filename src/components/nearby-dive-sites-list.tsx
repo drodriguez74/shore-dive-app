@@ -16,7 +16,7 @@ import {
   type SiteTypeFilter,
   type DifficultyFilter,
   type ShoreAccessFilter,
-} from "@/components/dive-site-explorer";
+} from "@/lib/sites/explorer-filters";
 
 export interface SiteWithDistance {
   site: SiteMarker;
